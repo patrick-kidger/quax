@@ -12,8 +12,10 @@ Uses JAX's nonstandard interpretation to handle array-ish objects, like:
 - structured (e.g. tridiagonal) matrices
 - sparse arrays
 - PRNG keys
+- quantisation?
+- bounded dynamism?
 
-and if desired perform multiple dispatch on them!
+...and if desired perform multiple dispatch on them!
 
 Moreover, this works even with existing programs, that were not written to accept such array-ish objects! :D
 
@@ -99,5 +101,3 @@ run(pred, key, key2)
 I think we could use this to do all kinds of crazy things.
 
 For example, write a nondeterministic Turing machine -- overload `lax.cond_p` to evaluate both branches, then store both of their outputs?
-
-We could do at least some forms of bounded dynamism: overload `lax.dot_general_p` with a while-loop based implementation that handles just the region of memory you care about.
