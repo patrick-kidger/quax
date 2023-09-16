@@ -6,29 +6,71 @@ import jax.random as jr
 import jax.tree_util as jtu
 from jaxtyping import Array, PRNGKeyArray, PyTree, Shaped
 
-from ..core import ArrayValue, quaxify_keepwrap, register
+from .._core import ArrayValue, quaxify, quaxify_keepwrap, register
 
 
 class LoraArray(ArrayValue):
-    w: Shaped[Array, "*batch x y"]
+    """Replaces a matrix `w in R^{n x m}` with `w + a @ b`, where `a in R^{n x k}` and
+    `b in R^{k x m}`.
+    
+    Typically `k` is much smaller than `n` or `m`, and so `w + a @ b` is described as a
+    "low rank adaptation" of `w`. The value of `k` is the "rank" of the adaptation.
+
+    Note that this does not materialise the sum `w + a @ b` into a single matrix, but
+    instead stores it as three separate `w`, `a`, `b` matrices. This is because the
+    typical use-case for LoRA is to update just the `a` and `b` matrices when
+    fine-tuning a neural network.
+
+    This implementation makes use of Quax's multiple-dispatch capabilities to calculate
+    matrix-vector products `(w + a @ b) @ x` via `w @ x + a @ (b @ x)`, which turns out
+    to be computationally cheaper.
+    """
+
+    _w: Shaped[Array, "*batch x y"]
     a: Shaped[Array, "*batch x z"]
     b: Shaped[Array, "*batch z y"]
+    stop_gradient: bool  = eqx.field(static=True)
     allow_materialise: bool = eqx.field(static=True)
 
     def __init__(
         self,
         weight: Shaped[Array, "*batch x y"],
+        *,
         rank: int,
         scale: float = 0.01,
         allow_materialise: bool = False,
-        *,
+        stop_gradient: bool = True,
         key: PRNGKeyArray
     ):
+        """**Arguments:**
+        
+        - `weight`: the original weight to wrap.
+        - `rank`: the rank of the low-rank adaptation.
+        - `scale`: `a` will be initialised at `Normal(0, scale^2)`. (`b` is initialised
+            at zero.)
+        - `allow_materialise`: if Quax encounters an operation for which there has not
+            been a specific override specified for LoraArrays, should it either (a)
+            throw an error (`allow_materialise=False`, the default), or (b) silently
+            convert the `LoraArray` back into an JAX array, by explicitly calculating
+            `w + a @ b` (`allow_materialise=True`).
+        - `stop_gradient`: whether to automatically stop the gradient (prevent training)
+            of the original weight matrix `weight`.
+        - `key`: used to provide randomness for initialising `a`.
+        """
+
         *batch, x, y = weight.shape
-        self.w = weight
+        self._w = weight
         self.a = jr.normal(key, (*batch, x, rank), dtype=weight.dtype) * scale
         self.b = jnp.zeros((*batch, rank, y), dtype=weight.dtype)
+        self.stop_gradient = stop_gradient
         self.allow_materialise = allow_materialise
+
+    @property
+    def w(self):
+        if self.stop_gradient:
+            return lax.stop_gradient(self._w)
+        else:
+            return self._w
 
     def materialise(self):
         if self.allow_materialise:
@@ -52,23 +94,68 @@ def _is_linear(x):
 
 def loraify(
     model: PyTree,
+    *,
     rank: int,
     scale: float = 0.01,
     allow_materialise: bool = False,
-    *,
+    stop_gradient: bool = True,
     key: PRNGKeyArray
 ) -> PyTree:
+    """Converts an [Equinox](https://github.com/patrick-kidger/equinox) model into a
+    low-rank adapted version.
+
+    **Arguments:**
+
+    - `model`: the model to convert. This is treated as a PyTree, and all
+        `eqx.nn.Linear` layers found will have their weight matrices replaced with
+        `LoraArray`s.
+    - `rank`: the rank of the low-rank adaptation.
+    - `scale`: how large to initialise the `a` matrix of the low-rank adaptation.
+    - `allow_materialise`: if Quax encounters an operation for which there has not
+        been a specific override specified for `LoraArray`s, should it either (a)
+        throw an error (`allow_materialise=False`, the default), or (b) silently
+        convert the `LoraArray` back into an JAX array, by explicitly calculating
+        `w + a @ b` (`allow_materialise=True`).
+    - `stop_gradient`: whether to automatically stop the gradient (prevent training)
+        of the original weight matrices of the linear layers.
+    - `key`: used to provide randomness for initialising the low-rank adaptation.
+
+    **Returns:**
+
+    A copy of `model`, will all linear layers having their weight matrices replaced with
+    `LoraArray`s.
+
+    Typically, the result should then be used with a call to `quax.quaxify`, which will
+    trace your JAX program, and replace all interactions with LoRA arrays using the
+    appropriate multiple dispatch rules.
+
+    !!! Example
+
+        ```python
+        import equinox as eqx
+        import quax
+        import jax.random as jr
+
+        key = jr.PRNGKey(0)
+        mlp = eqx.nn.MLP(...)
+        mlp = quax.lora.loraify(mlp, rank=2, key=key)
+        # Wrap in `quaxify` and call as normal.
+        some_output = quax.quaxify(mlp)(some_input)
+        ```
+    """
     def _loraify(x):
         nonlocal key
         if _is_linear(x):
             key, subkey = jr.split(key)
             lora_weight = LoraArray(
-                x.weight, rank, scale, allow_materialise, key=subkey
+                x.weight, rank=rank, scale=scale, stop_gradient=stop_gradient, allow_materialise=allow_materialise, key=subkey
             )
             return eqx.tree_at(lambda l: l.weight, x, lora_weight)
         else:
             return x
 
+    # Note that we do not automatically wrap in `quaxify`, as we don't want to privilege
+    # `__call__` over any other method of the model.
     return jtu.tree_map(_loraify, model, is_leaf=_is_linear)
 
 

@@ -2,12 +2,15 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
+import quax
 from jaxtyping import Array, Shaped
 
-from ..core import ArrayValue, quaxify_keepwrap, register
 
+class TridiagonalMatrix(quax.ArrayValue):
+    """Represents a tridiagonal matrix, by storing just the values of its three
+    diagonals.
+    """
 
-class TridiagonalMatrix(ArrayValue):
     lower_diag: Shaped[Array, "*batch size-1"]
     main_diag: Shaped[Array, "*batch size"]
     upper_diag: Shaped[Array, "*batch size-1"]
@@ -66,8 +69,8 @@ def _tridiagonal_matvec(lower_diag, main_diag, upper_diag, vector):
     return b.at[:-1].add(c).at[1:].add(a)
 
 
-@register(lax.dot_general_p)
-def _(lhs: TridiagonalMatrix, rhs: ArrayValue, *, dimension_numbers, **kwargs):
+@quax.register(lax.dot_general_p)
+def _(lhs: TridiagonalMatrix, rhs: quax.ArrayValue, *, dimension_numbers, **kwargs):
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     lhs_ndim = lhs.ndim
     if lhs_contract == (lhs_ndim - 1,) and (lhs_ndim - 2 not in lhs_batch):
@@ -83,10 +86,10 @@ def _(lhs: TridiagonalMatrix, rhs: ArrayValue, *, dimension_numbers, **kwargs):
             matvec = jax.vmap(matvec, in_axes=(lhs_i, None))
         for rhs_i in rhs_unused:
             matvec = jax.vmap(matvec, in_axes=(None, rhs_i), out_axes=-1)
-        return quaxify_keepwrap(matvec)(
+        return quax.quaxify(matvec, unwrap_builtin_value=False)(
             lhs.lower_diag, lhs.main_diag, lhs.upper_diag, rhs
         )
     else:
-        return quaxify_keepwrap(lax.dot_general)(
+        return quax.quaxify(lax.dot_general, unwrap_builtin_value=False)(
             lhs.materialise(), rhs, dimension_numbers, **kwargs
         )

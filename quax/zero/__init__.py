@@ -1,1 +1,1 @@
-from .core import Zero as Zero
+from ._core import Zero as Zero

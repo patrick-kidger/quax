@@ -6,22 +6,35 @@ import jax.lax as lax
 import jax.numpy as jnp
 import numpy as np
 
-from ..core import ArrayValue, DenseArrayValue, register
+from .._core import ArrayValue, DenseArrayValue, register
 
 
 class Zero(ArrayValue):
+    """Represents a symbolic zero value. Operations like `array + zero` will be
+    reduced down to just `array` at trace time.
+
+    This is essentially a generalised version of the symbolic zeros used by JAX in its
+    autodifferentiation rules -- in our case, we can apply them at any time, not just
+    during AD.
+    """
     _shape: tuple[int, ...] = eqx.field(static=True)
     _dtype: Any = eqx.field(static=True)
 
     def __init__(self, shape: tuple[int, ...], dtype: Any):
+        """**Arguments:**
+        
+        - `shape`: the shape of the zero array.
+        - `dtype`: the dtype of the zero array.
+        """
+
         self._shape = shape
         self._dtype = dtype
 
     def aval(self):
-        return jax.core.ShapedArray(self.shape, self.dtype)
+        return jax.core.ShapedArray(self._shape, self._dtype)
 
     def materialise(self):
-        return jnp.zeros(self.shape, self.dtype)
+        return jnp.zeros(self._shape, self._dtype)
 
 
 @register(lax.broadcast_in_dim_p)
@@ -35,9 +48,12 @@ def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
     ):
         return Zero(shape, np.result_type(arraylike))
     else:
-        out = lax.broadcast_in_dim_p.bind(
-            arraylike, broadcast_dimensions=broadcast_dimensions, shape=shape
-        )
+        # Avoid an infinite loop, by pushing a new interpreter to the dynamic
+        # interpreter stack.
+        with jax.ensure_compile_time_eval():
+            out = lax.broadcast_in_dim_p.bind(
+                arraylike, broadcast_dimensions=broadcast_dimensions, shape=shape
+            )
         return DenseArrayValue(out)
 
 
@@ -91,7 +107,7 @@ def _(operand: Zero, *, start_indices, limit_indices, strides) -> Zero:
         (limit - start) // stride
         for start, limit, stride in zip(start_indices, limit_indices, strides)
     ]
-    return Zero(shape, operand.dtype)
+    return Zero(tuple(shape), operand.dtype)
 
 
 def _zero_matmul(lhs: ArrayValue, rhs: ArrayValue, kwargs) -> Zero:

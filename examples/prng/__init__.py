@@ -1,4 +1,4 @@
-from .core import (
+from ._core import (
     normal as normal,
     PRNG as PRNG,
     split as split,

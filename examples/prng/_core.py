@@ -12,9 +12,8 @@ import jax.lax as lax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
+import quax
 from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
-
-from ..core import ArrayValue, register
 
 
 RealArray: TypeAlias = ArrayLike
@@ -27,7 +26,9 @@ else:
     SelfPRNG = "PRNG"
 
 
-class PRNG(ArrayValue):
+class PRNG(quax.ArrayValue):
+    """Abstract base class for all custom PRNGs."""
+
     def materialise(self):
         raise TypeError(
             "PRNGs are only valid for certain operations, like `normal` or "
@@ -36,14 +37,16 @@ class PRNG(ArrayValue):
 
     @abc.abstractmethod
     def random_bits(self, bit_width: int, shape: tuple[int, ...]) -> UInt[Array, "..."]:
-        ...
+        """Generate random bits from this PRNG. Must be implemented in subclasses."""
 
     @abc.abstractmethod
     def split(self, num: int) -> Sequence[SelfPRNG]:
-        ...
+        """Split this PRNG into multiple sub-PRNGs. Must be implemented in subclasses."""
 
 
 class ThreeFry(PRNG):
+    """Implements a threefry PRNG."""
+
     value: UInt32[Array, "*batch 2"]
 
     def __init__(self, seed: Integer[ArrayLike, ""]):
@@ -61,6 +64,12 @@ class ThreeFry(PRNG):
         return [eqx.tree_at(lambda s: s.value, self, x) for x in new_values]
 
 
+ThreeFry.__init__.__doc__ = """**Arguments:**
+
+- `seed`: an integer to use as the seed for the PRNG.
+"""
+
+
 def uniform(
     key: PRNG,
     shape: tuple[int, ...] = (),
@@ -68,6 +77,12 @@ def uniform(
     minval: RealArray = 0.0,
     maxval: RealArray = 1.0,
 ) -> Float[Array, ""]:
+    """Samples a random number uniformly distributed over `[minval, maxval)`.
+    
+    Arguments as `jax.random.uniform`, except that the first argument must be one of our
+    PRNGs, e.g. `prng.ThreeFry(...)`.
+    """
+
     if not jnp.issubdtype(dtype, jnp.floating):
         raise ValueError("Must use floating dtype")
     dtype = jax.dtypes.canonicalize_dtype(dtype)
@@ -105,6 +120,12 @@ def uniform(
 def normal(
     key: PRNG, shape: tuple[int, ...] = (), dtype: DTypeLikeInexact = jnp.float_
 ) -> Float[Array, ""]:
+    """Samples from a normal distribution.
+    
+    Arguments as `jax.random.normal`, except that the first argument must be one of our
+    PRNGs, e.g. `prng.ThreeFry(...)`.
+    """
+
     if not jnp.issubdtype(dtype, jnp.floating):
         raise ValueError("Must use floating dtype")
     dtype = jax.dtypes.canonicalize_dtype(dtype)
@@ -130,10 +151,16 @@ PRNG_T = TypeVar("PRNG_T", bound=PRNG)
 
 
 def split(key: PRNG_T, num: int = 2) -> Sequence[PRNG_T]:
+    """Splits a key in multiple subkeys, each behaving statistically independently.
+
+    Arguments as `jax.random.split`, except that the first argument must be one of our
+    PRNGs, e.g. `prng.ThreeFry(...)`.
+    """
+
     return key.split(num)
 
 
 # Allows for `jnp.where(pred, key1, key2)`.
-@register(lax.select_n_p)
+@quax.register(lax.select_n_p)
 def _(pred, *cases: PRNG) -> PRNG:
     return jtu.tree_map(ft.partial(lax.select_n, pred), *cases)

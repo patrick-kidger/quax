@@ -3,7 +3,7 @@ import functools as ft
 import operator
 import typing_extensions
 from collections.abc import Callable
-from typing import Union
+from typing import Any, Union
 
 import equinox as eqx
 import jax
@@ -23,6 +23,29 @@ _rules: dict[core.Primitive, Callable] = {}
 
 
 def register(primitive: core.Primitive):
+    """Registers a multiple dispatch implementation for this JAX primitive.
+    
+    Used as decorator, and requires type annotations to perform multiple dispatch:
+    ```python
+    @quax.register(jax.lax.add_p)
+    def _(x: SomeValue, y: SomeValue):
+        return ...  # some implementation
+    ```
+    All positional arguments will be (subclasses of) [`quax.Value`][] -- these are the
+    set of types that Quax will attempt to perform multiple dispatch with.
+
+    All keyword arguments will be the parameters for this primitive, as passed to
+    `prim.bind(... **params)`.
+
+    **Arguments:**
+
+    - `primitive`: The `jax.core.Primitive` to provide a multiple dispatch
+        implementation for.
+
+    **Returns:**
+
+    A decorator for registering a multiple dispatch rule with the specified primitive.
+    """
     def _register(rule):
         try:
             existing_rule = _rules[primitive]
@@ -65,6 +88,8 @@ class _QuaxTracer(core.Tracer):
 
 def _default_process(primitive, values, params):
     arrays = [x.materialise() for x in values]
+    # Avoid an infinite loop, by pushing a new interpreter to the dynamic interpreter
+    # stack.
     with jax.ensure_compile_time_eval():
         out = primitive.bind(*arrays, **params)
     if primitive.multiple_results:
@@ -97,12 +122,11 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             except plum.NotFoundLookupError:
                 out = _default_process(primitive, values, params)
         if primitive.multiple_results:
-            return [_QuaxTracer(self, x) for x in out]
+            return [_QuaxTracer(self, x) for x in out]  # pyright: ignore
         else:
             return _QuaxTracer(self, out)  # pyright: ignore
 
-    def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
-        return fun.call_wrapped(*tracers)
+    # TODO: add other process_* rules
 
 
 #
@@ -161,8 +185,20 @@ class _Quaxify(eqx.Module):
 
 
 def quaxify(fn, unwrap_builtin_value: bool = True):
+    """Quaxify's a function, so that it understands custom array-ish objects like
+    `quax.lora.LoraArray`. When this function is called, multiple dispatch will be
+    performed against these types.
+        
+    **Arguments:**
+
+    - `fn`: the function to wrap.
+
+    **Returns:**
+
+    A copy of `fn`, that understands all Quax types.
+    """
     return eqx.module_update_wrapper(
-        _Quaxify(fn, unwrap_builtin_value=unwrap_builtin_value), fn
+        _Quaxify(fn, unwrap_builtin_value=unwrap_builtin_value)
     )
 
 
@@ -175,16 +211,33 @@ quaxify_keepwrap = ft.partial(quaxify, unwrap_builtin_value=False)
 
 
 class Value(eqx.Module):
+    """Represents an object which Quax can perform multiple dispatch with.
+
+    In practice you will probably want to inherit from [`quax.ArrayValue`][] instead,
+    which represents specifically an array-like object that can be used for multiple
+    dispatch. (It adds a number of methods like `__add__`, `.shape`, etc.)
+    """
+
     @abc.abstractmethod
-    def materialise(self) -> ArrayLike:
-        pass
+    def materialise(self) -> Any:
+        """All concrete subclasses must implement this method, specifying how to
+        materialise this object into any type that is understood by JAX. This is so that
+        the usual JAX primitive implementations can be applied as a fallback: all
+        objects are materialised, and then the usual implementation called on them.
+
+        It is acceptable for this function to just raise an error -- in this case
+        the error will be surfaced to the end user, indicating that an operation is
+        not supported for this array-ish object.
+        """
 
     @abc.abstractmethod
     def aval(self) -> core.AbstractValue:
-        pass
+        """All concrete subclasses must implement this method, specifying the abstract
+        value seen by JAX.
+        """
 
 
-def _is_value(x) -> "typing_extensions.StrictTypeGuard[Value]":
+def _is_value(x) -> "typing_extensions.StrictTypeGuard[Value]":  # pyright: ignore
     return isinstance(x, Value)
 
 
@@ -196,9 +249,27 @@ def _flip_binop(binop):
 
 
 class ArrayValue(Value):
+    """A [`quax.Value`][] for specifically array-like types. If you are creating a
+    custom array-ish object then you should typically inherit from this.
+    """
+
+    @abc.abstractmethod
+    def materialise(self) -> ArrayLike:
+        """All concrete subclasses must implement this method, specifying how to
+        materialise this object into a standard JAX array. This is so that the usual
+        JAX primitive implementations can be applied as a fallback: all array-ish
+        objects are materialised, and then the usual implementation called on them.
+
+        It is acceptable for this function to just raise an error -- in this case
+        the error will be surfaced to the end user, indicating that an operation is
+        not supported for this array-ish object.
+        """
+
     @abc.abstractmethod
     def aval(self) -> core.ShapedArray:
-        pass
+        """All concrete subclasses must implement this method, specifying the abstract
+        value seen by JAX. The return must be a `jax.core.ShapedArray`.
+        """
 
     @property
     def dtype(self):
@@ -236,10 +307,13 @@ class ArrayValue(Value):
     __rmul__ = quaxify(_flip_binop(operator.mul))
     __matmul__ = quaxify(operator.matmul)
     __rmatmul__ = quaxify(_flip_binop(operator.matmul))
+
     # TODO: add all other methods and properties and things
 
 
 class DenseArrayValue(ArrayValue):
+    """Internal type used to wrap up a JAX arraylike into Quax's `Value` system."""
+
     array: ArrayLike
 
     def materialise(self) -> ArrayLike:
@@ -251,7 +325,10 @@ class DenseArrayValue(ArrayValue):
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
 def _(*args: ArrayValue, jaxpr, **kwargs):
-    return quaxify_keepwrap(core.jaxpr_as_fun(jaxpr))(*args)
+    del kwargs
+    return jax.jit(quaxify_keepwrap(core.jaxpr_as_fun(jaxpr)))(*args)
+
+# TODO: also register higher-order primitives like `lax.cond_p` etc.
 
 
 #

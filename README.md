@@ -1,103 +1,73 @@
 # Quax
 
-*Significantly inspired by https://github.com/davisyoshida/qax, https://github.com/stanford-crfm/levanter, and `jax.experimental.sparse`.*  
-*Right now this is wildly experimental -- this is me sharing an in-progress research project, not releasing one of my more-polished libraries.*  
-*The LoRA, named arrays, and PRNGs are all lightly tested. The other use-cases are untested.*
-
-Uses JAX's nonstandard interpretation to handle array-ish objects, like:
+Uses JAX's nonstandard interpretation to perform multiple dispatch on custom array-ish objects, like:
 
 - LoRA weight matrices
-- arrays with named dimensions
 - symbolic zeros
+- arrays with named dimensions
 - structured (e.g. tridiagonal) matrices
 - sparse arrays
-- PRNG keys
-- quantisation?
-- bounded dynamism?
+- etc!
 
-...and if desired perform multiple dispatch on them!
+This works via a custom JAX transform. This means that it works even with existing programs, that were not written to accept such array-ish objects: just wrap the program in the `quaxify` transform. A typical use-case is applying LoRA to fine-tune arbitrary models.
 
-Moreover, this works even with existing programs, that were not written to accept such array-ish objects! :D
+Implementations for **LoRA** and **symbolic zeros** are both already built-in to Quax. You can also create your own types and rules very easily; see the [examples library](https://github.com/patrick-kidger/quax/tree/main/examples) for demo implementations for **named arrays**, **sparse arrays**, **tridiagonal matrices**, and **PRNG keys**.
 
-Furthermore both sparse arrays and PRNG keys are use-cases already present in core JAX, so it looks like we might have a solution that is of interest to core JAX as well.
+## Installation
 
-## Examples
+```
+pip install git+https://github.com/patrick-kidger/quax
+```
 
-### LoRA
+## Example: LoRA
 
 ```python
 import equinox as eqx
 import jax.random as jr
 import quax
 
-# Start off with any JAX program
+# Start off with any JAX program: here, the forward pass through a linear layer.
 key1, key2, key3 = jr.split(jr.PRNGKey(0), 3)
 linear = eqx.nn.Linear(10, 12, key=key1)
 vector = jr.normal(key2, (10,))
 
-# Make one of the inputs be an array-ish object
-# (Incidentally, there's a quax.lora.loraify function to do this automatically.)
+# Make some of the inputs be an array-ish object. This function finds all
+# `eqx.nn.Linear` layers, and wraps their weights in `LoraArray`s.
+lora_linear = quax.lora.loraify(linear, rank=2, key=key3)
+# For this simple model, we could also do it manually.
 lora_weight = quax.lora.LoraArray(linear.weight, rank=2, key=key3)
 lora_linear = eqx.tree_at(lambda l: l.weight, linear, lora_weight)
 
-# Wrap your function call in quaxify
+# Wrap your function call in quaxify. This transform calls your original function,
+# whilst looking up any multiple dispatch rules registered for any custom array-ish
+# objects.
 out = quax.quaxify(lora_linear)(vector)
 ```
 
-### Named arrays
+## Work in progress!
 
-```python
-import equinox as eqx
-import jax.random as jr
-import quax
+This library is a work in progress! Right now it should support enough to run LoRA on common models. However, some operations (e.g. `jax.custom_jvp` or `jax.lax.cond_p`) are not yet supported. If you attempt to use these then an error will be thrown whilst tracing your program.
 
-# Existing program
-linear = eqx.nn.Linear(3, 4, key=jr.PRNGKey(0))
+If you find yourself hitting any of these, then go ahead and open an issue, and/or a pull request!
 
-# Wrap our desired inputs into NamedArrays
-In = quax.named.Axis("In", 3)
-Out = quax.named.Axis("Out", 4)
-named_bias = quax.named.NamedArray(linear.bias, (Out,))
-named_weight = quax.named.NamedArray(linear.weight, (Out, In))
-named_linear = eqx.tree_at(lambda l: (l.bias, l.weight), linear, (named_bias, named_weight))
-vector = quax.named.NamedArray(jr.normal(jr.PRNGKey(1), (3,)), (In,))
+## See also: other libraries in the JAX ecosystem
 
-# Wrap function with quaxify. Output will be a NamedArray!
-out = quax.quaxify(named_linear)(vector)
-print(out)  # NamedArray(array=f32[4], axes=(Axis(name='Out', size=4),))
-```
+[Equinox](https://github.com/patrick-kidger/equinox): neural networks.
 
-### PRNGs
+[Optax](https://github.com/deepmind/optax): first-order gradient (SGD, Adam, ...) optimisers.
 
-```python
-import jax
-import jax.lax as lax
-import jax.numpy as jnp
-import quax
+[Diffrax](https://github.com/patrick-kidger/diffrax): numerical differential equation solvers.
 
-# `key` is a PyTree wrapping a u32[2] array.
-key = quax.prng.ThreeFry(0)
-quax.prng.normal(key)
+[Lineax](https://github.com/google/lineax): linear solvers and linear least squares.
 
-# Some primitives (lax.add_p) are disallowed.
-key + 1  # TypeError!
-quax.quaxify(lax.add)(key, 1)  # TypeError!
+[jaxtyping](https://github.com/google/jaxtyping): type annotations for shape/dtype of arrays.
 
-# Some primitives (lax.select_n) are allowed.
-# We're calling `jnp.where(..., pytree1, pytree2)` -- on pytrees, not arrays!
-pred = jnp.array(True)
-key2 = quax.prng.ThreeFry(1)
+[Eqxvision](https://github.com/paganpasta/eqxvision): computer vision models.
 
-@jax.jit
-@quax.quaxify
-def run(pred, key1, key2):
-    return jnp.where(pred, key1, key2)
+[sympy2jax](https://github.com/google/sympy2jax): SymPy<->JAX conversion; train symbolic expressions via gradient descent.
 
-run(pred, key, key2)
-```
+[Levanter](https://github.com/stanford-crfm/levanter): scalable+reliable training of foundation models (e.g. LLMs).
 
-## Speculation
+## Acknowledgements
 
-I think we could use this to do all kinds of crazy things.
-
-For example, write a nondeterministic Turing machine -- overload `lax.cond_p` to evaluate both branches, then store both of their outputs?
+Significantly inspired by https://github.com/davisyoshida/qax, https://github.com/stanford-crfm/levanter, and `jax.experimental.sparse`.
