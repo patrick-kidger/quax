@@ -17,12 +17,13 @@ class Zero(ArrayValue):
     autodifferentiation rules -- in our case, we can apply them at any time, not just
     during AD.
     """
+
     _shape: tuple[int, ...] = eqx.field(static=True)
     _dtype: Any = eqx.field(static=True)
 
     def __init__(self, shape: tuple[int, ...], dtype: Any):
         """**Arguments:**
-        
+
         - `shape`: the shape of the zero array.
         - `dtype`: the dtype of the zero array.
         """

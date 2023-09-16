@@ -12,8 +12,9 @@ import jax.lax as lax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
-import quax
 from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
+
+import quax
 
 
 RealArray: TypeAlias = ArrayLike
@@ -41,7 +42,9 @@ class PRNG(quax.ArrayValue):
 
     @abc.abstractmethod
     def split(self, num: int) -> Sequence[SelfPRNG]:
-        """Split this PRNG into multiple sub-PRNGs. Must be implemented in subclasses."""
+        """Split this PRNG into multiple sub-PRNGs. Must be implemented in
+        subclasses.
+        """
 
 
 class ThreeFry(PRNG):
@@ -60,7 +63,7 @@ class ThreeFry(PRNG):
         return jax._src.prng.threefry_random_bits(self.value, bit_width, shape)
 
     def split(self, num: int) -> Sequence["ThreeFry"]:
-        new_values = jax._src.prng.threefry_split(self.value, num)
+        new_values = jax._src.prng.threefry_split(self.value, (num,))
         return [eqx.tree_at(lambda s: s.value, self, x) for x in new_values]
 
 
@@ -78,7 +81,7 @@ def uniform(
     maxval: RealArray = 1.0,
 ) -> Float[Array, ""]:
     """Samples a random number uniformly distributed over `[minval, maxval)`.
-    
+
     Arguments as `jax.random.uniform`, except that the first argument must be one of our
     PRNGs, e.g. `prng.ThreeFry(...)`.
     """
@@ -121,7 +124,7 @@ def normal(
     key: PRNG, shape: tuple[int, ...] = (), dtype: DTypeLikeInexact = jnp.float_
 ) -> Float[Array, ""]:
     """Samples from a normal distribution.
-    
+
     Arguments as `jax.random.normal`, except that the first argument must be one of our
     PRNGs, e.g. `prng.ThreeFry(...)`.
     """

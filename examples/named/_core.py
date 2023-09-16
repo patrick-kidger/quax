@@ -6,8 +6,9 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-import quax
 from jaxtyping import ArrayLike
+
+import quax
 
 
 @dataclasses.dataclass(frozen=True, eq=False)
@@ -15,6 +16,7 @@ class Axis:
     """Represents a named axis. Optionally can specify a fixed integer size for this
     axis.
     """
+
     size: Optional[int]
 
 
@@ -79,7 +81,9 @@ def _broadcast_axes(axes1, axes2):
         raise ValueError(f"Cannot broadcast {axes1} against {axes2}")
 
 
-def _register_elementwise_binop(op: Callable[[Any, Any], Any], prim: jax.core.Primitive):
+def _register_elementwise_binop(
+    op: Callable[[Any, Any], Any], prim: jax.core.Primitive
+):
     @quax.register(prim)
     def _(x: NamedArray, y: NamedArray) -> NamedArray:
         axes = _broadcast_axes(x.axes, y.axes)
@@ -131,9 +135,9 @@ def trace(
     dtype=None,
 ) -> NamedArray:
     """As `jax.numpy.trace`, but supports specifying axes by name, not just by index.
-    
+
     **Arguments:**
-    
+
     - `array`: a `NamedArray`.
     - `offset`: Whether to offset above or below the main diagonal. Can be both positive
         and negative.

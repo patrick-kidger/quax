@@ -2,8 +2,9 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-import quax
 from jaxtyping import Array, Shaped
+
+import quax
 
 
 class BCOO(quax.ArrayValue):

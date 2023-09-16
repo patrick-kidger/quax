@@ -1,6 +1,6 @@
 import equinox as eqx
-import jax.numpy as jnp
 import jax.lax as lax
+import jax.numpy as jnp
 import jax.random as jr
 
 import quax
@@ -76,13 +76,13 @@ def test_stop_gradient(getkey):
     grad3false = run3(mlp_false, vector)
 
     for grad in (grad1true, grad2true, grad3true):
-        assert (grad.layers[1].weight.w  == 0).all()
-        assert not (grad.layers[1].weight.a  == 0).all()
-        assert not (grad.layers[1].weight.b  == 0).all()
-        assert not (grad.layers[1].bias  == 0).all()
+        assert (grad.layers[1].weight.w == 0).all()
+        assert not (grad.layers[1].weight.a == 0).all()
+        assert not (grad.layers[1].weight.b == 0).all()
+        assert not (grad.layers[1].bias == 0).all()
 
     for grad in (grad1false, grad2false, grad3false):
-        assert not (grad.layers[1].weight.w  == 0).all()
-        assert not (grad.layers[1].weight.a  == 0).all()
-        assert not (grad.layers[1].weight.b  == 0).all()
-        assert not (grad.layers[1].bias  == 0).all()
+        assert not (grad.layers[1].weight.w == 0).all()
+        assert not (grad.layers[1].weight.a == 0).all()
+        assert not (grad.layers[1].weight.b == 0).all()
+        assert not (grad.layers[1].bias == 0).all()

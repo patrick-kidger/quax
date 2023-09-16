@@ -24,7 +24,7 @@ _rules: dict[core.Primitive, Callable] = {}
 
 def register(primitive: core.Primitive):
     """Registers a multiple dispatch implementation for this JAX primitive.
-    
+
     Used as decorator, and requires type annotations to perform multiple dispatch:
     ```python
     @quax.register(jax.lax.add_p)
@@ -46,9 +46,10 @@ def register(primitive: core.Primitive):
 
     A decorator for registering a multiple dispatch rule with the specified primitive.
     """
-    def _register(rule):
+
+    def _register(rule: Callable):
         try:
-            existing_rule = _rules[primitive]
+            existing_rule = _rules[primitive]  # pyright: ignore
         except KeyError:
 
             @plum.Dispatcher().abstract
@@ -188,7 +189,7 @@ def quaxify(fn, unwrap_builtin_value: bool = True):
     """Quaxify's a function, so that it understands custom array-ish objects like
     `quax.lora.LoraArray`. When this function is called, multiple dispatch will be
     performed against these types.
-        
+
     **Arguments:**
 
     - `fn`: the function to wrap.
@@ -327,6 +328,7 @@ class DenseArrayValue(ArrayValue):
 def _(*args: ArrayValue, jaxpr, **kwargs):
     del kwargs
     return jax.jit(quaxify_keepwrap(core.jaxpr_as_fun(jaxpr)))(*args)
+
 
 # TODO: also register higher-order primitives like `lax.cond_p` etc.
 

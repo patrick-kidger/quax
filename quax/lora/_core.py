@@ -6,13 +6,13 @@ import jax.random as jr
 import jax.tree_util as jtu
 from jaxtyping import Array, PRNGKeyArray, PyTree, Shaped
 
-from .._core import ArrayValue, quaxify, quaxify_keepwrap, register
+from .._core import ArrayValue, quaxify_keepwrap, register
 
 
 class LoraArray(ArrayValue):
     """Replaces a matrix `w in R^{n x m}` with `w + a @ b`, where `a in R^{n x k}` and
     `b in R^{k x m}`.
-    
+
     Typically `k` is much smaller than `n` or `m`, and so `w + a @ b` is described as a
     "low rank adaptation" of `w`. The value of `k` is the "rank" of the adaptation.
 
@@ -29,7 +29,7 @@ class LoraArray(ArrayValue):
     _w: Shaped[Array, "*batch x y"]
     a: Shaped[Array, "*batch x z"]
     b: Shaped[Array, "*batch z y"]
-    stop_gradient: bool  = eqx.field(static=True)
+    stop_gradient: bool = eqx.field(static=True)
     allow_materialise: bool = eqx.field(static=True)
 
     def __init__(
@@ -43,7 +43,7 @@ class LoraArray(ArrayValue):
         key: PRNGKeyArray
     ):
         """**Arguments:**
-        
+
         - `weight`: the original weight to wrap.
         - `rank`: the rank of the low-rank adaptation.
         - `scale`: `a` will be initialised at `Normal(0, scale^2)`. (`b` is initialised
@@ -143,12 +143,18 @@ def loraify(
         some_output = quax.quaxify(mlp)(some_input)
         ```
     """
+
     def _loraify(x):
         nonlocal key
         if _is_linear(x):
             key, subkey = jr.split(key)
             lora_weight = LoraArray(
-                x.weight, rank=rank, scale=scale, stop_gradient=stop_gradient, allow_materialise=allow_materialise, key=subkey
+                x.weight,
+                rank=rank,
+                scale=scale,
+                stop_gradient=stop_gradient,
+                allow_materialise=allow_materialise,
+                key=subkey,
             )
             return eqx.tree_at(lambda l: l.weight, x, lora_weight)
         else:
