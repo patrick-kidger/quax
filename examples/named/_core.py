@@ -35,7 +35,7 @@ class NamedArray(quax.ArrayValue):
     axes: tuple[Axis, ...] = eqx.field(static=True)
     allow_materialise: bool = eqx.field(default=False, static=True)
 
-    def __post_init__(self):
+    def __check_init__(self):
         if len(set(self.axes)) != len(self.axes):
             raise ValueError("Axis names for `NamedArray` must be unique.")
         if jnp.ndim(self.array) != len(self.axes):
@@ -43,6 +43,16 @@ class NamedArray(quax.ArrayValue):
         for size, axis in zip(jnp.shape(self.array), self.axes):
             if axis.size is not None and size != axis.size:
                 raise ValueError(f"Mismatched axis size for axis {axis}.")
+
+    @property
+    def shape(self):
+        if self.allow_materialise:
+            return super().shape
+        else:
+            raise RuntimeError(
+                "Refusing to access the shape of a `NamedArray` with "
+                "`allow_materialise=False`."
+            )
 
     def materialise(self):
         if self.allow_materialise:
@@ -54,6 +64,9 @@ class NamedArray(quax.ArrayValue):
 
     def aval(self) -> jax.core.ShapedArray:
         return jax.core.get_aval(self.array)  # pyright: ignore
+
+    def enable_materialise(self, allow_materialise: bool = True):
+        return NamedArray(self.array, self.axes, allow_materialise)
 
 
 NamedArray.__init__.__doc__ = """**Arguments:**

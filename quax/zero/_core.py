@@ -1,3 +1,4 @@
+import functools as ft
 from typing import Any
 
 import equinox as eqx
@@ -6,7 +7,7 @@ import jax.lax as lax
 import jax.numpy as jnp
 import numpy as np
 
-from .._core import ArrayValue, DenseArrayValue, register
+from .._core import ArrayValue, DenseArrayValue, quaxify_keepwrap, register
 
 
 class Zero(ArrayValue):
@@ -41,12 +42,8 @@ class Zero(ArrayValue):
 @register(lax.broadcast_in_dim_p)
 def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
     arraylike = value.array
-    if (
-        isinstance(
-            arraylike, (bool, int, float, complex, np.bool_, np.integer, np.inexact)
-        )
-        and value == 0
-    ):
+    aval = jax.core.get_aval(arraylike)
+    if isinstance(aval, jax.core.ConcreteArray) and aval.shape == () and aval.val == 0:
         return Zero(shape, np.result_type(arraylike))
     else:
         # Avoid an infinite loop, by pushing a new interpreter to the dynamic
@@ -58,34 +55,53 @@ def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
         return DenseArrayValue(out)
 
 
+@register(lax.broadcast_in_dim_p)
+def _(value: Zero, *, broadcast_dimensions, shape) -> Zero:
+    del broadcast_dimensions
+    return Zero(shape, value.dtype)
+
+
+@register(lax.convert_element_type_p)
+def _(value: Zero, *, new_dtype, weak_type) -> Zero:
+    del weak_type
+    return Zero(value.shape, new_dtype)
+
+
+@quaxify_keepwrap
+def _shape_dtype(x, y, value):
+    shape = jnp.broadcast_shapes(x.shape, y.shape)
+    dtype = jnp.result_type(x.dtype, y.dtype)
+    return jnp.broadcast_to(value, shape).astype(dtype)
+
+
 @register(lax.add_p)
 def _(x: ArrayValue, y: Zero) -> ArrayValue:
-    return x
+    return _shape_dtype(x, y, value=x)
 
 
 @register(lax.add_p)
 def _(x: Zero, y: ArrayValue) -> ArrayValue:
-    return y
+    return _shape_dtype(x, y, value=y)
 
 
 @register(lax.add_p)
 def _(x: Zero, y: Zero) -> Zero:
-    return x
+    return _shape_dtype(x, y, value=x)
 
 
 @register(lax.mul_p)
 def _(x: ArrayValue, y: Zero) -> Zero:
-    return y
+    return _shape_dtype(x, y, value=y)
 
 
 @register(lax.mul_p)
 def _(x: Zero, y: ArrayValue) -> Zero:
-    return x
+    return _shape_dtype(x, y, value=x)
 
 
 @register(lax.mul_p)
 def _(x: Zero, y: Zero) -> Zero:
-    return x
+    return _shape_dtype(x, y, value=x)
 
 
 @register(lax.dynamic_update_slice_p)
@@ -112,8 +128,10 @@ def _(operand: Zero, *, start_indices, limit_indices, strides) -> Zero:
 
 
 def _zero_matmul(lhs: ArrayValue, rhs: ArrayValue, kwargs) -> Zero:
-    out_aval = lax.dot_general_p.abstract_eval(lhs.aval(), rhs.aval(), **kwargs)
-    return Zero(out_aval.shape, out_aval.dtype)
+    out_struct = jax.eval_shape(
+        ft.partial(lax.dot_general_p.bind, **kwargs), lhs.aval(), rhs.aval()
+    )
+    return Zero(out_struct.shape, out_struct.dtype)
 
 
 @register(lax.dot_general_p)

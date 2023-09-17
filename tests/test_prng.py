@@ -1,3 +1,6 @@
+import pathlib
+import sys
+
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
@@ -6,18 +9,23 @@ import pytest
 import quax
 
 
+_here = pathlib.Path(__file__).resolve().parent
+sys.path.append(str(_here.parent / "examples"))
+import prng  # pyright: ignore
+
+
 def test_uniform():
-    key = quax.prng.ThreeFry(0)
-    quax.prng.uniform(key)
+    key = prng.ThreeFry(0)
+    prng.uniform(key)
 
 
 def test_normal():
-    key = quax.prng.ThreeFry(0)
-    quax.prng.normal(key)
+    key = prng.ThreeFry(0)
+    prng.normal(key)
 
 
 def test_cannot_add():
-    key = quax.prng.ThreeFry(0)
+    key = prng.ThreeFry(0)
     with pytest.raises(TypeError):
         key + 1  # pyright: ignore
 
@@ -32,8 +40,8 @@ def test_cannot_add():
 def test_where():
     pred1 = jnp.array(True)
     pred2 = jnp.array(False)
-    key1 = quax.prng.ThreeFry(0)
-    key2 = quax.prng.ThreeFry(1)
+    key1 = prng.ThreeFry(0)
+    key2 = prng.ThreeFry(1)
 
     @jax.jit
     @quax.quaxify
@@ -50,8 +58,8 @@ def test_brownian():
     def run(key):
         def body(carry, _):
             cumval, key = carry
-            new_key, subkey = quax.prng.split(key)
-            val = quax.prng.normal(subkey)
+            new_key, subkey = prng.split(key)
+            val = prng.normal(subkey)
             new_cumval = cumval + val
             new_carry = new_cumval, new_key
             return new_carry, cumval
@@ -59,4 +67,4 @@ def test_brownian():
         _, cumvals = lax.scan(body, (0.0, key), xs=None, length=10)
         return cumvals
 
-    run(quax.prng.ThreeFry(0))
+    run(prng.ThreeFry(0))

@@ -17,7 +17,7 @@ class TridiagonalMatrix(quax.ArrayValue):
     upper_diag: Shaped[Array, "*batch size-1"]
     allow_materialise: bool = eqx.field(default=False, static=True)
 
-    def __post_init__(self):
+    def __check_init__(self):
         *batch1, size1 = self.lower_diag.shape
         *batch2, size2 = self.main_diag.shape
         *batch3, size3 = self.upper_diag.shape
@@ -77,16 +77,18 @@ def _(lhs: TridiagonalMatrix, rhs: quax.ArrayValue, *, dimension_numbers, **kwar
     if lhs_contract == (lhs_ndim - 1,) and (lhs_ndim - 2 not in lhs_batch):
         rhs_ndim = rhs.ndim
         lhs_used = set(lhs_contract + lhs_batch)
+        lhs_used.add(lhs_ndim - 2)
         rhs_used = set(rhs_contract + rhs_batch)
-        lhs_unused = (i for i in range(lhs_ndim) if i not in lhs_used)
-        rhs_unused = (i for i in range(rhs_ndim) if i not in rhs_used)
+        lhs_unused = [i for i in range(lhs_ndim) if i not in lhs_used]
+        rhs_unused = [i for i in range(rhs_ndim) if i not in rhs_used]
+        del lhs_used, rhs_used
         matvec = _tridiagonal_matvec
         for lhs_i, rhs_i in zip(lhs_batch, rhs_batch):
-            matvec = jax.vmap(matvec, in_axes=(lhs_i, rhs_i))
+            matvec = jax.vmap(matvec, in_axes=(lhs_i, lhs_i, lhs_i, rhs_i))
         for lhs_i in lhs_unused:
-            matvec = jax.vmap(matvec, in_axes=(lhs_i, None))
+            matvec = jax.vmap(matvec, in_axes=(lhs_i, lhs_i, lhs_i, None))
         for rhs_i in rhs_unused:
-            matvec = jax.vmap(matvec, in_axes=(None, rhs_i), out_axes=-1)
+            matvec = jax.vmap(matvec, in_axes=(None, None, None, rhs_i), out_axes=-1)
         return quax.quaxify(matvec, unwrap_builtin_value=False)(
             lhs.lower_diag, lhs.main_diag, lhs.upper_diag, rhs
         )

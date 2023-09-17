@@ -46,7 +46,7 @@ out = quax.quaxify(lora_linear)(vector)
 
 ## Work in progress!
 
-This library is a work in progress! Right now it should support enough to run LoRA on common models. However, some operations (e.g. `jax.custom_jvp` or `jax.lax.cond_p`) are not yet supported. If you attempt to use these then an error will be thrown whilst tracing your program.
+This library is a work in progress! Right now it should support enough to run LoRA on common models. However, some operations (e.g. `jax.lax.cond_p`) are not yet supported. If you attempt to use these then an error will be thrown whilst tracing your program.
 
 If you find yourself hitting any of these, then go ahead and open an issue, and/or a pull request!
 

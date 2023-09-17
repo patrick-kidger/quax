@@ -1,7 +1,7 @@
 import abc
 import functools as ft
+import itertools as it
 import operator
-import typing_extensions
 from collections.abc import Callable
 from typing import Any, Union
 
@@ -9,8 +9,11 @@ import equinox as eqx
 import jax
 import jax._src
 import jax.core as core
+import jax.extend.linear_util as lu
+import jax.numpy as jnp
 import jax.tree_util as jtu
 import plum
+from jax.custom_derivatives import SymbolicZero as SZ
 from jaxtyping import ArrayLike
 
 
@@ -127,7 +130,70 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
         else:
             return _QuaxTracer(self, out)  # pyright: ignore
 
+    def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
+        in_values = [t.value for t in tracers]
+        in_leaves, in_treedef = jtu.tree_flatten(in_values)
+        fun, out_treedef1 = _custom_jvp_fun_wrap(fun, self.main, in_treedef)
+        jvp, out_treedef2 = _custom_jvp_jvp_wrap(jvp, self.main, in_treedef)
+        with jax.ensure_compile_time_eval():
+            out_leaves = primitive.bind(
+                fun, jvp, *in_leaves, symbolic_zeros=symbolic_zeros
+            )
+        _, out_treedef = lu.merge_linear_aux(out_treedef1, out_treedef2)
+        out_values = jtu.tree_unflatten(out_treedef, out_leaves)
+        return [_QuaxTracer(self, x) for x in out_values]
+
     # TODO: add other process_* rules
+
+
+@lu.transformation_with_aux
+def _custom_jvp_fun_wrap(main, in_treedef, *in_leaves):
+    trace = main.with_cur_sublevel()
+    in_values = jtu.tree_unflatten(in_treedef, in_leaves)
+    in_tracers = [x if type(x) is SZ else _QuaxTracer(trace, x) for x in in_values]
+    out_tracers = yield in_tracers, {}
+    # The symbolic zero branch here will actually create a `quax.zero.Zero`!
+    out_tracers = [
+        jnp.zeros(t.aval.shape, t.aval.dtype) if type(t) is SZ else t  # pyright: ignore
+        for t in out_tracers
+    ]
+    out_values = [trace.full_raise(t).value for t in out_tracers]
+    out_leaves, out_treedef = jtu.tree_flatten(out_values)
+    yield out_leaves, out_treedef
+
+
+@lu.transformation_with_aux
+def _custom_jvp_jvp_wrap(main, in_treedef, *in_primals_and_tangents):
+    trace = main.with_cur_sublevel()
+    in_primals = in_primals_and_tangents[: len(in_primals_and_tangents) // 2]
+    in_tangents = in_primals_and_tangents[len(in_primals_and_tangents) // 2 :]
+    in_primal_values = jtu.tree_unflatten(in_treedef, in_primals)
+    in_tangent_values = jtu.tree_unflatten(in_treedef, in_tangents)
+    in_tracers = [trace.pure(x) for x in it.chain(in_primal_values, in_tangent_values)]
+    out_tracers = yield in_tracers, {}
+    # The symbolic zero branch here will actually create a `quax.zero.Zero`!
+    out_tracers = [
+        jnp.zeros(t.aval.shape, t.aval.dtype) if type(t) is SZ else t  # pyright: ignore
+        for t in out_tracers
+    ]
+    out_values = [trace.full_raise(t).value for t in out_tracers]
+    out_primal_values = out_values[: len(out_values) // 2]
+    out_tangent_values = out_values[len(out_values) // 2 :]
+    out_primal_values2 = []
+    out_tangent_values2 = []
+    for primal, tangent in zip(out_primal_values, out_tangent_values, strict=True):
+        if primal.__class__ != tangent.__class__:
+            primal = primal.materialise()
+            tangent = tangent.materialise()
+        out_primal_values2.append(primal)
+        out_tangent_values2.append(tangent)
+    out_primals, out_primal_treedef = jtu.tree_flatten(out_primal_values2)
+    out_tangents, out_tangent_treedef = jtu.tree_flatten(out_tangent_values2)
+    if out_primal_treedef != out_tangent_treedef:
+        raise ValueError(
+            "Primals and tangents had the same class, but different flattened results."
+        )
+    yield out_primals + out_tangents, out_primal_treedef
 
 
 #
@@ -238,7 +304,7 @@ class Value(eqx.Module):
         """
 
 
-def _is_value(x) -> "typing_extensions.StrictTypeGuard[Value]":  # pyright: ignore
+def _is_value(x):
     return isinstance(x, Value)
 
 
@@ -327,7 +393,11 @@ class DenseArrayValue(ArrayValue):
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
 def _(*args: ArrayValue, jaxpr, **kwargs):
     del kwargs
-    return jax.jit(quaxify_keepwrap(core.jaxpr_as_fun(jaxpr)))(*args)
+    leaves, treedef = jtu.tree_flatten(args)  # remove all Values
+    fun = quaxify_keepwrap(core.jaxpr_as_fun(jaxpr))
+    flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
+    with jax.ensure_compile_time_eval():  # replace the dynamic QuaxTrace
+        return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
 
 # TODO: also register higher-order primitives like `lax.cond_p` etc.

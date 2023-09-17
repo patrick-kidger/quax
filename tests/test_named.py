@@ -1,55 +1,65 @@
+import pathlib
+import sys
+
 import equinox as eqx
+import jax.lax as lax
+import jax.numpy as jnp
 import jax.random as jr
 import pytest
 
 import quax
 
 
+_here = pathlib.Path(__file__).resolve().parent
+sys.path.append(str(_here.parent / "examples"))
+import named  # pyright: ignore
+
+
 def test_init(getkey):
-    Foo = quax.named.Axis("Foo", 3)
-    Bar = quax.named.Axis("Bar", 3)
+    Foo = named.Axis(3)
+    Bar = named.Axis(3)
     a = jr.normal(getkey(), (3, 3))
-    a = quax.named.NamedArray(a, (Foo, Bar))
+    a = named.NamedArray(a, (Foo, Bar))
 
     with pytest.raises(ValueError):
         a = jr.normal(getkey(), (3, 3))
-        a = quax.named.NamedArray(a, (Foo, Foo))
+        a = named.NamedArray(a, (Foo, Foo))
 
     b = jr.normal(getkey(), (3, 4))
     with pytest.raises(ValueError):
-        b = quax.named.NamedArray(b, (Foo, Bar))
+        b = named.NamedArray(b, (Foo, Bar))
 
 
 def test_add(getkey):
-    Foo = quax.named.Axis("Foo", 3)
-    Bar = quax.named.Axis("Bar", 3)
+    Foo = named.Axis(3)
+    Bar = named.Axis(3)
     a = jr.normal(getkey(), (3, 3))
-    a = quax.named.NamedArray(a, (Foo, Bar))
+    a = named.NamedArray(a, (Foo, Bar))
     b = jr.normal(getkey(), (3, 3))
-    b = quax.named.NamedArray(b, (Foo, Bar))
+    b = named.NamedArray(b, (Foo, Bar))
     out1 = a + b
-    out2 = quax.named.add(a, b)
-    true_out = quax.named.NamedArray(a.array + b.array, (Foo, Bar))
+    out2 = quax.quaxify(lax.add)(a, b)
+    true_out = named.NamedArray(a.array + b.array, (Foo, Bar))
     assert out1 == true_out
     assert out2 == true_out
 
 
 def test_matmul(getkey):
-    Foo = quax.named.Axis("Foo", 3)
-    Bar = quax.named.Axis("Bar", 3)
-    Qux = quax.named.Axis("Qux", 4)
+    Foo = named.Axis(3)
+    Bar = named.Axis(3)
+    Qux = named.Axis(None)
     a = jr.normal(getkey(), (3, 3))
-    a = quax.named.NamedArray(a, (Foo, Bar))
-    b = jr.normal(getkey(), (3, 4))
-    b = quax.named.NamedArray(b, (Bar, Qux))
+    a = named.NamedArray(a, (Foo, Bar))
+    b = jr.normal(getkey(), (3, 3))
+    b = named.NamedArray(b, (Bar, Qux))
 
-    a @ b  # pyright: ignore
-    quax.named.matmul(a, b)
+    _ = a @ b
+    quax.quaxify(jnp.matmul)(a, b)
 
-    with pytest.raises(TypeError):
-        b @ a  # pyright: ignore
-    with pytest.raises(TypeError):
-        quax.named.matmul(b, a)
+    with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
+        _ = b @ a
+    with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
+        quax.quaxify(jnp.matmul)(b, a)
 
 
 def test_existing_function(getkey):
@@ -62,22 +72,29 @@ def test_existing_function(getkey):
     linear = eqx.nn.Linear(3, 4, key=getkey())
 
     # Wrap our desired inputs into NamedArrays
-    In = quax.named.Axis("In", 3)
-    Out = quax.named.Axis("Out", 4)
-    named_bias = quax.named.NamedArray(linear.bias, (Out,))
-    named_weight = quax.named.NamedArray(linear.weight, (Out, In))
+    In = named.Axis(3)
+    Out = named.Axis(4)
+    named_bias = named.NamedArray(linear.bias, (Out,))
+    named_weight = named.NamedArray(linear.weight, (Out, In))
     named_linear = eqx.tree_at(
         lambda l: (l.bias, l.weight), linear, (named_bias, named_weight)
     )
-    vector = quax.named.NamedArray(jr.normal(getkey(), (3,)), (In,))
+    vector = named.NamedArray(jr.normal(getkey(), (3,)), (In,))
 
     # Wrap function with quaxify.
     out = quax.quaxify(named_linear)(vector)
-    print(out)
-
     # Output is a NamedArray!
-    true_out = quax.named.NamedArray(linear(vector.array), (Out,))
+    true_out = named.NamedArray(linear(vector.array), (Out,))
     assert out == true_out
 
 
-# TODO: test the rest of the API!
+def test_trace(getkey):
+    A = named.Axis(None)
+    B = named.Axis(None)
+    C = named.Axis(None)
+    x = jr.normal(getkey(), (2, 3, 4))
+    named_x = named.NamedArray(x, (A, B, C))
+    out = named.trace(named_x, axis1=A, axis2=C)
+    true_out = jnp.trace(x, axis1=0, axis2=2)
+    assert out.axes == (B,)
+    assert jnp.array_equal(out.enable_materialise().materialise(), true_out)

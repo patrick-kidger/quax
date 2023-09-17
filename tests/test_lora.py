@@ -1,7 +1,9 @@
 import equinox as eqx
+import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
+import pytest
 
 import quax
 
@@ -43,7 +45,7 @@ def test_complicated_dot(getkey):
 
 
 def test_stop_gradient(getkey):
-    mlp = eqx.nn.MLP(2, 2, 64, 3, key=getkey())
+    mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
     mlp_true = quax.lora.loraify(mlp, rank=3, stop_gradient=True, key=getkey())
     mlp_false = quax.lora.loraify(mlp, rank=3, stop_gradient=False, key=getkey())
     vector = jr.normal(getkey(), (2,))
@@ -53,6 +55,25 @@ def test_stop_gradient(getkey):
     @quax.quaxify
     def run1(mlp, vector):
         return jnp.sum(mlp(vector))
+
+    grad_true = run1(mlp_true, vector)
+    grad_false = run1(mlp_false, vector)
+
+    assert (grad_true.layers[1].weight.w == 0).all()
+    assert (grad_true.layers[1].weight.a == 0).all()  # becuase b==0 at init
+    assert not (grad_true.layers[1].weight.b == 0).all()
+    assert not (grad_true.layers[1].bias == 0).all()
+
+    assert not (grad_false.layers[1].weight.w == 0).all()
+    assert (grad_false.layers[1].weight.a == 0).all()  # because b==0 at init
+    assert not (grad_false.layers[1].weight.b == 0).all()
+    assert not (grad_false.layers[1].bias == 0).all()
+
+
+def test_decorator_stack_runs(getkey):
+    mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
+    mlp = quax.lora.loraify(mlp, rank=3, key=getkey())
+    vector = jr.normal(getkey(), (2,))
 
     @eqx.filter_jit
     @quax.quaxify
@@ -67,22 +88,20 @@ def test_stop_gradient(getkey):
     def run3(mlp, vector):
         return jnp.sum(mlp(vector))
 
-    grad1true = run1(mlp_true, vector)
-    grad2true = run2(mlp_true, vector)
-    grad3true = run3(mlp_true, vector)
+    run2(mlp, vector)
+    run3(mlp, vector)
+    run2(mlp, vector)
+    run3(mlp, vector)
 
-    grad1false = run1(mlp_false, vector)
-    grad2false = run2(mlp_false, vector)
-    grad3false = run3(mlp_false, vector)
 
-    for grad in (grad1true, grad2true, grad3true):
-        assert (grad.layers[1].weight.w == 0).all()
-        assert not (grad.layers[1].weight.a == 0).all()
-        assert not (grad.layers[1].weight.b == 0).all()
-        assert not (grad.layers[1].bias == 0).all()
+def test_materialise(getkey):
+    x_false = quax.lora.LoraArray(
+        jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=False, key=getkey()
+    )
+    x_true = quax.lora.LoraArray(
+        jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=True, key=getkey()
+    )
 
-    for grad in (grad1false, grad2false, grad3false):
-        assert not (grad.layers[1].weight.w == 0).all()
-        assert not (grad.layers[1].weight.a == 0).all()
-        assert not (grad.layers[1].weight.b == 0).all()
-        assert not (grad.layers[1].bias == 0).all()
+    _ = x_true + 1
+    with pytest.raises(RuntimeError, match="Refusing to materialise"):
+        _ = quax.quaxify(jax.nn.relu)(x_false)

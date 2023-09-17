@@ -166,7 +166,7 @@ def loraify(
 
 
 @quaxify_keepwrap
-def _lora_arrayr_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kwargs):
+def _lora_array_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kwargs):
     n_sharedbatch = len(lhs_batch)  # = len(rhs_batch)
     # All of the lora batch dimensions that aren't a dot_general batch dimension.
     n_lorabatch = ndim - n_sharedbatch - 2
@@ -192,8 +192,22 @@ def _lora_array_matmul(
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     [ndim] = {lhs.a.ndim, lhs.b.ndim, lhs.w.ndim}
     if lhs_contract == (ndim - 1,) and (ndim - 2 not in lhs_batch):
-        return _lora_arrayr_matmul_impl(
+        return _lora_array_matmul_impl(
             lhs.w, lhs.a, lhs.b, rhs, lhs_batch, ndim, dimension_numbers, kwargs
+        )
+    elif lhs_contract == (ndim - 2,) and (ndim - 1 not in lhs_batch):
+        T = lambda x: jnp.swapaxes(x, -1, -2)
+        lhs_contract = (ndim - 1,)
+        dimension_numbers = ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch))
+        return _lora_array_matmul_impl(
+            T(lhs.w),
+            T(lhs.b),
+            T(lhs.a),
+            rhs,
+            lhs_batch,
+            ndim,
+            dimension_numbers,
+            kwargs,
         )
     else:
         return quaxify_keepwrap(lax.dot_general)(
