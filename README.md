@@ -54,19 +54,27 @@ If you find yourself hitting any of these, then go ahead and open an issue, and/
 
 [Equinox](https://github.com/patrick-kidger/equinox): neural networks.
 
+[jaxtyping](https://github.com/google/jaxtyping): type annotations for shape/dtype of arrays.
+
 [Optax](https://github.com/deepmind/optax): first-order gradient (SGD, Adam, ...) optimisers.
 
 [Diffrax](https://github.com/patrick-kidger/diffrax): numerical differential equation solvers.
 
-[Lineax](https://github.com/google/lineax): linear solvers and linear least squares.
+[Optimistix](https://github.com/patrick-kidger/optimistix): root finding, minimisation, fixed points, and least squares.
 
-[jaxtyping](https://github.com/google/jaxtyping): type annotations for shape/dtype of arrays.
+[Lineax](https://github.com/google/lineax): linear solvers.
 
-[Eqxvision](https://github.com/paganpasta/eqxvision): computer vision models.
+[BlackJAX](https://github.com/blackjax-devs/blackjax): probabilistic+Bayesian sampling.
+
+[Orbax](https://github.com/google/orbax): checkpointing (async/multi-host/multi-device).
 
 [sympy2jax](https://github.com/google/sympy2jax): SymPy<->JAX conversion; train symbolic expressions via gradient descent.
 
+[Eqxvision](https://github.com/paganpasta/eqxvision): computer vision models.
+
 [Levanter](https://github.com/stanford-crfm/levanter): scalable+reliable training of foundation models (e.g. LLMs).
+
+[PySR](https://github.com/milesCranmer/PySR): symbolic regression. (Non-JAX honourable mention!)
 
 ## Acknowledgements
 
