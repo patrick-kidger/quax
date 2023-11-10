@@ -16,7 +16,7 @@ Implementations for **LoRA** and **symbolic zeros** are both already built-in to
 ## Installation
 
 ```
-pip install git+https://github.com/patrick-kidger/quax
+pip install quax
 ```
 
 ## Example: LoRA
