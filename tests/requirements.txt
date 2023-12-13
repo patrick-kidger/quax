@@ -1,1 +1,3 @@
 beartype
+pytest
+jax[cpu]
