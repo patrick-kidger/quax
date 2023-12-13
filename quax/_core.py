@@ -2,7 +2,7 @@ import abc
 import functools as ft
 import itertools as it
 import operator
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Union
 
 import equinox as eqx
@@ -91,21 +91,38 @@ class _QuaxTracer(core.Tracer):
 
 
 def _default_process(primitive, values, params):
-    arrays = [x.materialise() for x in values]
+    defaults = {type(x).default for x in values}
+    raises = False
+    if len(defaults) == 0:  # e.g. jax.debug.print("")
+        default = Value.default
+    elif len(defaults) == 1:
+        [default] = defaults
+    elif len(defaults) == 2:
+        default1, default2 = defaults
+        if default1 is Value.default:
+            default = default2
+        elif default2 is Value.default:
+            default = default1
+        else:
+            raises = True
+    else:
+        raises = True
+    if raises:
+        types = {type(x) for x in values}
+        raise TypeError(
+            f"Multiple array-ish types {types} are specifying default process rules."
+        )
+
     # Avoid an infinite loop, by pushing a new interpreter to the dynamic interpreter
     # stack.
     with jax.ensure_compile_time_eval():
-        out = primitive.bind(*arrays, **params)
-    if primitive.multiple_results:
-        return [DenseArrayValue(x) for x in out]
-    else:
-        return DenseArrayValue(out)
+        return default(primitive, values, params)  # pyright: ignore
 
 
 class _QuaxTrace(core.Trace[_QuaxTracer]):
     def pure(self, val: Union[ArrayLike, "Value"]) -> _QuaxTracer:
         if not _is_value(val):
-            val = DenseArrayValue(val)
+            val = DenseArrayValue(val)  # pyright: ignore
         return _QuaxTracer(self, val)  # pyright: ignore
 
     def lift(self, tracer: core.Tracer) -> _QuaxTracer:
@@ -133,8 +150,8 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
     def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
         in_values = [t.value for t in tracers]
         in_leaves, in_treedef = jtu.tree_flatten(in_values)
-        fun, out_treedef1 = _custom_jvp_fun_wrap(fun, self.main, in_treedef)
-        jvp, out_treedef2 = _custom_jvp_jvp_wrap(jvp, self.main, in_treedef)
+        fun, out_treedef1 = _custom_jvp_fun_wrap(fun, self.main, in_treedef)  # pyright: ignore
+        jvp, out_treedef2 = _custom_jvp_jvp_wrap(jvp, self.main, in_treedef)  # pyright: ignore
         with jax.ensure_compile_time_eval():
             out_leaves = primitive.bind(
                 fun, jvp, *in_leaves, symbolic_zeros=symbolic_zeros
@@ -146,7 +163,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
     # TODO: add other process_* rules
 
 
-@lu.transformation_with_aux
+@lu.transformation_with_aux  # pyright: ignore
 def _custom_jvp_fun_wrap(main, in_treedef, *in_leaves):
     trace = main.with_cur_sublevel()
     in_values = jtu.tree_unflatten(in_treedef, in_leaves)
@@ -162,7 +179,7 @@ def _custom_jvp_fun_wrap(main, in_treedef, *in_leaves):
     yield out_leaves, out_treedef
 
 
-@lu.transformation_with_aux
+@lu.transformation_with_aux  # pyright: ignore
 def _custom_jvp_jvp_wrap(main, in_treedef, *in_primals_and_tangents):
     trace = main.with_cur_sublevel()
     in_primals = in_primals_and_tangents[: len(in_primals_and_tangents) // 2]
@@ -181,7 +198,8 @@ def _custom_jvp_jvp_wrap(main, in_treedef, *in_primals_and_tangents):
     out_tangent_values = out_values[len(out_values) // 2 :]
     out_primal_values2 = []
     out_tangent_values2 = []
-    for primal, tangent in zip(out_primal_values, out_tangent_values, strict=True):
+    assert len(out_primal_values) == len(out_tangent_values)
+    for primal, tangent in zip(out_primal_values, out_tangent_values):
         if primal.__class__ != tangent.__class__:
             primal = primal.materialise()
             tangent = tangent.materialise()
@@ -303,6 +321,28 @@ class Value(eqx.Module):
         value seen by JAX.
         """
 
+    @staticmethod
+    def default(primitive, values, params) -> Union["Value", Sequence["Value"]]:
+        """This is the default rule for when no rule has been `quax.register`'d for the
+        primitive.
+
+        This base implementation of `default` will be used if no subclass overrides this
+        method.
+
+        If there is precisely one override of this method (amongst all arguments to the
+        primitive bind), then that implementation of `default` will be used.
+
+        If there are multiple overrides of this method (due to multiple subclasses of
+        Value appearing amongst the arguments of the primitive bind), then tracing will
+        error. In this case a rule must be explicitly specified.
+        """
+        arrays = [x.materialise() for x in values]
+        out = primitive.bind(*arrays, **params)
+        if primitive.multiple_results:
+            return [DenseArrayValue(x) for x in out]
+        else:
+            return DenseArrayValue(out)
+
 
 def _is_value(x):
     return isinstance(x, Value)
@@ -391,13 +431,16 @@ class DenseArrayValue(ArrayValue):
 
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
-def _(*args: ArrayValue, jaxpr, **kwargs):
+def _(*args: ArrayValue, jaxpr, inline, **kwargs):
     del kwargs
-    leaves, treedef = jtu.tree_flatten(args)  # remove all Values
     fun = quaxify_keepwrap(core.jaxpr_as_fun(jaxpr))
-    flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
-    with jax.ensure_compile_time_eval():  # replace the dynamic QuaxTrace
-        return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
+    if inline:
+        return fun(*args)
+    else:
+        leaves, treedef = jtu.tree_flatten(args)  # remove all Values
+        flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
+        with jax.ensure_compile_time_eval():  # replace the dynamic QuaxTrace
+            return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
 
 # TODO: also register higher-order primitives like `lax.cond_p` etc.

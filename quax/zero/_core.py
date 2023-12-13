@@ -52,7 +52,7 @@ def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
             out = lax.broadcast_in_dim_p.bind(
                 arraylike, broadcast_dimensions=broadcast_dimensions, shape=shape
             )
-        return DenseArrayValue(out)
+        return DenseArrayValue(out)  # pyright: ignore
 
 
 @register(lax.broadcast_in_dim_p)

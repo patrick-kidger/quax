@@ -40,7 +40,7 @@ class LoraArray(ArrayValue):
         scale: float = 0.01,
         allow_materialise: bool = False,
         stop_gradient: bool = True,
-        key: PRNGKeyArray
+        key: PRNGKeyArray,
     ):
         """**Arguments:**
 
@@ -99,7 +99,7 @@ def loraify(
     scale: float = 0.01,
     allow_materialise: bool = False,
     stop_gradient: bool = True,
-    key: PRNGKeyArray
+    key: PRNGKeyArray,
 ) -> PyTree:
     """Converts an [Equinox](https://github.com/patrick-kidger/equinox) model into a
     low-rank adapted version.

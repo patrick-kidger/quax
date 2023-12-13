@@ -89,7 +89,7 @@ def test_matmul(getkey):
             linear,
             quax.zero.Zero(linear.weight.shape, linear.weight.dtype),
         )
-        out = linear(jnp.ones(2))
+        out = quax.quaxify(linear)(jnp.ones(2))
         if use_bias:
             assert jnp.array_equal(out, linear.bias)
         else:

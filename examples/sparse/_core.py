@@ -98,7 +98,7 @@ def _(x: BCOO, *, dimensions):
     data = lax.squeeze_p.bind(x.data, dimensions=dimensions)
     indices = lax.squeeze_p.bind(x.indices, dimensions=dimensions)
     shape = tuple(x.shape[i] for i in range(x.ndim) if i not in dimensions)
-    return BCOO(data, indices, shape, allow_materialise=x.allow_materialise)
+    return BCOO(data, indices, shape, allow_materialise=x.allow_materialise)  # pyright: ignore
 
 
 @quax.register(lax.add_p)
