@@ -55,9 +55,12 @@ def register(primitive: core.Primitive):
             existing_rule = _rules[primitive]  # pyright: ignore
         except KeyError:
 
-            @plum.Dispatcher().abstract
             def existing_rule():
                 assert False
+
+            existing_rule.__name__ = f"{primitive}_dispatcher"
+            existing_rule.__qualname__ = f"{primitive}_dispatcher"
+            existing_rule = plum.Dispatcher().abstract(existing_rule)
 
             _rules[primitive] = existing_rule
         existing_rule.dispatch(rule)
