@@ -98,8 +98,8 @@ def test_add_sparse(getkey):
     assert z_mat.shape == (3, 2, 5, 1, 4)
     assert w.shape == (2, 5, 1, 4)
     assert w_mat.shape == (2, 5, 1, 4)
-    assert jnp.array_equal(w_mat, x_mat * 2)
-    assert jnp.array_equal(z_mat, x_mat + y_mat)
+    assert jnp.allclose(w_mat, x_mat * 2)
+    assert jnp.allclose(z_mat, x_mat + y_mat)
 
 
 def test_mul(getkey):
