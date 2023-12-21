@@ -116,10 +116,7 @@ def _default_process(primitive, values, params):
             f"Multiple array-ish types {types} are specifying default process rules."
         )
 
-    # Avoid an infinite loop, by pushing a new interpreter to the dynamic interpreter
-    # stack.
-    with jax.ensure_compile_time_eval():
-        return default(primitive, values, params)  # pyright: ignore
+    return default(primitive, values, params)  # pyright: ignore
 
 
 class _QuaxTrace(core.Trace[_QuaxTracer]):
@@ -155,10 +152,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
         in_leaves, in_treedef = jtu.tree_flatten(in_values)
         fun, out_treedef1 = _custom_jvp_fun_wrap(fun, self.main, in_treedef)  # pyright: ignore
         jvp, out_treedef2 = _custom_jvp_jvp_wrap(jvp, self.main, in_treedef)  # pyright: ignore
-        with jax.ensure_compile_time_eval():
-            out_leaves = primitive.bind(
-                fun, jvp, *in_leaves, symbolic_zeros=symbolic_zeros
-            )
+        out_leaves = primitive.bind(fun, jvp, *in_leaves, symbolic_zeros=symbolic_zeros)
         _, out_treedef = lu.merge_linear_aux(out_treedef1, out_treedef2)
         out_values = jtu.tree_unflatten(out_treedef, out_leaves)
         return [_QuaxTracer(self, x) for x in out_values]
@@ -250,7 +244,7 @@ class _Quaxify(eqx.Module):
         return self.fn
 
     def __call__(self, *args, **kwargs):
-        with core.new_main(_QuaxTrace, dynamic=True) as main:
+        with core.new_main(_QuaxTrace) as main:
             trace = _QuaxTrace(main, core.cur_sublevel())
             # Note that we do *not* wrap arraylikes here. We let that happen in
             # `_QuaxTrace.{pure,lift}` as necessary. This means that we can do e.g.
@@ -442,8 +436,7 @@ def _(*args: ArrayValue, jaxpr, inline, **kwargs):
     else:
         leaves, treedef = jtu.tree_flatten(args)  # remove all Values
         flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
-        with jax.ensure_compile_time_eval():  # replace the dynamic QuaxTrace
-            return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
+        return jax.jit(flat_fun)(leaves)
 
 
 # TODO: also register higher-order primitives like `lax.cond_p` etc.
