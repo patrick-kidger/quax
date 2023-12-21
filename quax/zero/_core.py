@@ -5,9 +5,8 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-import numpy as np
 
-from .._core import ArrayValue, DenseArrayValue, quaxify_keepwrap, register
+from .._core import ArrayValue, quaxify_keepwrap, register
 
 
 class Zero(ArrayValue):
@@ -40,19 +39,8 @@ class Zero(ArrayValue):
 
 
 @register(lax.broadcast_in_dim_p)
-def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
-    arraylike = value.array
-    aval = jax.core.get_aval(arraylike)
-    if isinstance(aval, jax.core.ConcreteArray) and aval.shape == () and aval.val == 0:
-        return Zero(shape, np.result_type(arraylike))
-    else:
-        # Avoid an infinite loop, by pushing a new interpreter to the dynamic
-        # interpreter stack.
-        with jax.ensure_compile_time_eval():
-            out = lax.broadcast_in_dim_p.bind(
-                arraylike, broadcast_dimensions=broadcast_dimensions, shape=shape
-            )
-        return DenseArrayValue(out)  # pyright: ignore
+def _(value: Zero, *, broadcast_dimensions, shape) -> Zero:
+    return Zero(shape, value.dtype)
 
 
 @register(lax.broadcast_in_dim_p)
