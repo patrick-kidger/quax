@@ -126,6 +126,7 @@ def test_creation():
 
         out = run(1)
         out2 = quax.quaxify(jnp.zeros)((3, 4))
-        zero = quax.zero.Zero((3, 4), jnp.float32)
-        assert eqx.tree_equal(out, zero)
-        assert eqx.tree_equal(out2, zero)
+        assert isinstance(out, jax.Array)
+        assert isinstance(out2, jax.Array)
+        assert not isinstance(out, quax.zero.Zero)
+        assert not isinstance(out2, quax.zero.Zero)
