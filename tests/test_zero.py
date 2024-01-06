@@ -129,3 +129,32 @@ def test_creation():
         zero = quax.zero.Zero((3, 4), jnp.float32)
         assert eqx.tree_equal(out, zero)
         assert eqx.tree_equal(out2, zero)
+
+
+def test_pow():
+    zero = quax.zero.Zero((3, 4), jnp.float32)
+
+    # Standard power
+    out = zero**3
+    assert isinstance(out, quax.zero.Zero)
+    assert out.shape == (3, 4)
+
+    # Zero power
+    out = zero**0
+    assert not isinstance(out, quax.zero.Zero)
+    ones = jnp.ones((3, 4), jnp.float32)
+    assert jnp.array_equal(out, ones)
+
+    # More complex zero powers
+    out = zero ** jnp.array(0)
+    assert not isinstance(out, quax.zero.Zero)
+    assert jnp.array_equal(out, ones)
+
+    out = zero**zero
+    assert not isinstance(out, quax.zero.Zero)
+    assert jnp.array_equal(out, ones)
+
+    # Reverse power
+    out = 3**zero
+    assert not isinstance(out, quax.zero.Zero)
+    assert jnp.array_equal(out, ones)

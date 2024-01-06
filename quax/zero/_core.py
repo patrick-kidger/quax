@@ -147,3 +147,15 @@ def _(lhs: ArrayValue, rhs: Zero, **kwargs) -> Zero:
 @register(lax.dot_general_p)
 def _(lhs: Zero, rhs: Zero, **kwargs) -> Zero:
     return _zero_matmul(lhs, rhs, kwargs)
+
+
+@register(lax.integer_pow_p)
+def _integer_pow(x: Zero, *, y: int) -> Zero | ArrayValue:
+    # Zero is a special case, because 0^0 = 1.
+    if y == 0:
+        return DenseArrayValue(x + 1)  # pyright: ignore
+
+    # Otherwise, we can just return a zero.
+    # Inf and NaN are not integers, so we don't need to worry about them.
+    del y
+    return x
