@@ -1,5 +1,5 @@
 import functools as ft
-from typing import Any
+from typing import Any, Union
 
 import equinox as eqx
 import jax.core
@@ -150,7 +150,7 @@ def _(lhs: Zero, rhs: Zero, **kwargs) -> Zero:
 
 
 @register(lax.integer_pow_p)
-def _integer_pow(x: Zero, *, y: int) -> Zero | ArrayValue:
+def _integer_pow(x: Zero, *, y: int) -> Union[Zero, ArrayValue]:
     # Zero is a special case, because 0^0 = 1.
     if y == 0:
         return DenseArrayValue(x + 1)  # pyright: ignore
