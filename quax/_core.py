@@ -418,6 +418,7 @@ class ArrayValue(Value):
     __matmul__ = quaxify(operator.matmul)
     __rmatmul__ = quaxify(_flip_binop(operator.matmul))
     __pow__ = quaxify(operator.pow)
+    __rpow__ = quaxify(_flip_binop(operator.pow))
 
     # TODO: add all other methods and properties and things
 
