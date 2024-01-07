@@ -139,7 +139,14 @@ def test_pow():
     assert isinstance(out, quax.zero.Zero)
     assert out.shape == (3, 4)
 
-    # Zero power
+    # Zero power. First check the JAX behaviour.
+    assert jnp.array(0) ** 0 == 1
+    assert jnp.array(0.0) ** 0 == 1
+    assert 0 ** jnp.array(0) == 1
+    assert 0.0 ** jnp.array(0) == 1
+    assert jnp.array(0) ** jnp.array(0) == 1
+    assert jnp.array(0.0) ** jnp.array(0) == 1
+
     out = zero**0
     assert not isinstance(out, quax.zero.Zero)
     ones = jnp.ones((3, 4), jnp.float32)
