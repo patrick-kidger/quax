@@ -6,7 +6,7 @@ import jax.random as jr
 import jax.tree_util as jtu
 from jaxtyping import Array, PRNGKeyArray, PyTree, Shaped
 
-from .._core import ArrayValue, quaxify_keepwrap, register
+from .._core import ArrayValue, quaxify, register
 
 
 class LoraArray(ArrayValue):
@@ -165,7 +165,7 @@ def loraify(
     return jtu.tree_map(_loraify, model, is_leaf=_is_linear)
 
 
-@quaxify_keepwrap
+@quaxify
 def _lora_array_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kwargs):
     n_sharedbatch = len(lhs_batch)  # = len(rhs_batch)
     # All of the lora batch dimensions that aren't a dot_general batch dimension.
@@ -210,7 +210,7 @@ def _lora_array_matmul(
             kwargs,
         )
     else:
-        return quaxify_keepwrap(lax.dot_general)(
+        return quaxify(lax.dot_general)(
             lhs.materialise(), rhs, dimension_numbers, **kwargs
         )
 
@@ -227,4 +227,4 @@ def _(lhs: ArrayValue, rhs: LoraArray, *, dimension_numbers, **kwargs) -> ArrayV
     n_rhs_uncontracted = rhs.aval().ndim - len(rhs_contract) - len(rhs_batch)
     src = tuple(range(n_sharedbatch, n_sharedbatch + n_rhs_uncontracted))
     dest = tuple(range(-n_rhs_uncontracted, 0))
-    return quaxify_keepwrap(jnp.moveaxis)(out, src, dest)
+    return quaxify(jnp.moveaxis)(out, src, dest)
