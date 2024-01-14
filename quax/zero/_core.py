@@ -6,8 +6,9 @@ import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import ArrayLike
 
-from .._core import ArrayValue, DenseArrayValue, quaxify, register
+from .._core import ArrayValue, quaxify, register
 
 
 class Zero(ArrayValue):
@@ -40,7 +41,7 @@ class Zero(ArrayValue):
 
 
 @register(lax.broadcast_in_dim_p)
-def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
+def _(value: ArrayLike, *, broadcast_dimensions, shape) -> Union[ArrayLike, ArrayValue]:
     arraylike = value.array
     aval = jax.core.get_aval(arraylike)
     if isinstance(aval, jax.core.ConcreteArray) and aval.shape == () and aval.val == 0:
@@ -52,7 +53,7 @@ def _(value: DenseArrayValue, *, broadcast_dimensions, shape) -> ArrayValue:
             out = lax.broadcast_in_dim_p.bind(
                 arraylike, broadcast_dimensions=broadcast_dimensions, shape=shape
             )
-        return DenseArrayValue(out)  # pyright: ignore
+        return out  # pyright: ignore
 
 
 @register(lax.broadcast_in_dim_p)
@@ -153,7 +154,7 @@ def _(lhs: Zero, rhs: Zero, **kwargs) -> Zero:
 def _integer_pow(x: Zero, *, y: int) -> Union[Zero, ArrayValue]:
     # Zero is a special case, because 0^0 = 1.
     if y == 0:
-        return DenseArrayValue(x + 1)  # pyright: ignore
+        return x + 1  # pyright: ignore
 
     # Otherwise, we can just return a zero.
     # Inf and NaN are not integers, so we don't need to worry about them.

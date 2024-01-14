@@ -87,30 +87,33 @@ class _QuaxTracer(core.Tracer):
         return self.value.aval()
 
     def full_lower(self):
-        if isinstance(self.value, DenseArrayValue):
+        if isinstance(self.value, _DenseArrayValue):
             return core.full_lower(self.value.array)
         else:
             return self
 
 
-def _default_process(primitive, values, params):
-    defaults = {type(x).default for x in values}
-    raises = False
-    if len(defaults) == 0:  # e.g. jax.debug.print("")
+def _default_process(
+    primitive: core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+):
+    defaults = set()
+    for x in values:
+        if isinstance(x, Value):
+            x_default = type(x).default
+            if x_default is Value.default:
+                pass
+            else:
+                defaults.add(x_default)
+        elif eqx.is_array_like(x):
+            # Ignore any unwrapped _DenseArrayValues
+            pass
+        else:
+            assert False
+    if len(defaults) == 0:
         default = Value.default
     elif len(defaults) == 1:
         [default] = defaults
-    elif len(defaults) == 2:
-        default1, default2 = defaults
-        if default1 is Value.default:
-            default = default2
-        elif default2 is Value.default:
-            default = default1
-        else:
-            raises = True
     else:
-        raises = True
-    if raises:
         types = {type(x) for x in values}
         raise TypeError(
             f"Multiple array-ish types {types} are specifying default process rules."
@@ -122,10 +125,9 @@ def _default_process(primitive, values, params):
         return default(primitive, values, params)  # pyright: ignore
 
 
-
 def _wrap_if_array(x):
     if eqx.is_array_like(x):
-        return DenseArrayValue(x)
+        return _DenseArrayValue(x)
     else:
         return x
 
@@ -133,17 +135,18 @@ def _wrap_if_array(x):
 class _QuaxTrace(core.Trace[_QuaxTracer]):
     def pure(self, val: Union[ArrayLike, "Value"]) -> _QuaxTracer:
         if not _is_value(val):
-            val = DenseArrayValue(val)  # pyright: ignore
+            val = _DenseArrayValue(val)  # pyright: ignore
         return _QuaxTracer(self, val)  # pyright: ignore
 
     def lift(self, tracer: core.Tracer) -> _QuaxTracer:
-        return _QuaxTracer(self, DenseArrayValue(tracer))
+        return _QuaxTracer(self, _DenseArrayValue(tracer))
 
     def sublift(self, tracer: _QuaxTracer) -> _QuaxTracer:
         return tracer
 
     def process_primitive(self, primitive, tracers, params):
         values = [t.value for t in tracers]
+        values = [x.array if isinstance(x, _DenseArrayValue) else x for x in values]
         try:
             rule = _rules[primitive]
         except KeyError:
@@ -241,7 +244,7 @@ def _unwrap_tracer(trace, x):
     if eqx.is_array_like(x):
         x = trace.full_raise(x)
     if isinstance(x, _QuaxTracer):
-        if isinstance(x.value, DenseArrayValue):
+        if isinstance(x.value, _DenseArrayValue):
             return x.value.array
         else:
             return x.value
@@ -268,9 +271,7 @@ class _Quaxify(eqx.Module):
                 is_leaf=_is_value,
             )
             out = fn(*args, **kwargs)
-            out = jtu.tree_map(
-                ft.partial(_unwrap_tracer, trace), out
-            )
+            out = jtu.tree_map(ft.partial(_unwrap_tracer, trace), out)
             return out
 
     def __get__(self, instance, owner):
@@ -327,7 +328,9 @@ class Value(eqx.Module):
         """
 
     @staticmethod
-    def default(primitive, values, params) -> Union["Value", Sequence["Value"]]:
+    def default(
+        primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+    ) -> Union[ArrayLike, "Value", Sequence[Union[ArrayLike, "Value"]]]:
         """This is the default rule for when no rule has been `quax.register`'d for the
         primitive.
 
@@ -341,12 +344,8 @@ class Value(eqx.Module):
         Value appearing amongst the arguments of the primitive bind), then tracing will
         error. In this case a rule must be explicitly specified.
         """
-        arrays = [x.materialise() for x in values]
-        out = primitive.bind(*arrays, **params)
-        if primitive.multiple_results:
-            return [DenseArrayValue(x) for x in out]
-        else:
-            return DenseArrayValue(out)
+        arrays = [x if eqx.is_array_like(x) else x.materialise() for x in values]
+        return primitive.bind(*arrays, **params)
 
 
 def _is_value(x):
@@ -393,8 +392,12 @@ class ArrayValue(Value):
         return self.aval().shape
 
 
-class DenseArrayValue(ArrayValue):
-    """Internal type used to wrap up a JAX arraylike into Quax's `Value` system."""
+class _DenseArrayValue(ArrayValue):
+    """Internal type used to wrap up a JAX arraylike into Quax's `Value` system.
+
+    This is an implementation detail hidded from the user! It is unwrapped straight
+    before calling a dispatch rule, and re-wrapped immediately afterwards.
+    """
 
     array: ArrayLike
 

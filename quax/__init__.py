@@ -6,7 +6,6 @@ from . import (
 )
 from ._core import (
     ArrayValue as ArrayValue,
-    DenseArrayValue as DenseArrayValue,
     quaxify as quaxify,
     register as register,
     Value as Value,
