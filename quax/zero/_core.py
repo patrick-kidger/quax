@@ -7,7 +7,7 @@ import jax.lax as lax
 import jax.numpy as jnp
 import numpy as np
 
-from .._core import ArrayValue, DenseArrayValue, quaxify_keepwrap, register
+from .._core import ArrayValue, DenseArrayValue, quaxify, register
 
 
 class Zero(ArrayValue):
@@ -67,7 +67,7 @@ def _(value: Zero, *, new_dtype, weak_type) -> Zero:
     return Zero(value.shape, new_dtype)
 
 
-@quaxify_keepwrap
+@quaxify
 def _shape_dtype(x, y, value):
     shape = jnp.broadcast_shapes(x.shape, y.shape)
     dtype = jnp.result_type(x.dtype, y.dtype)

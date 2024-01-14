@@ -122,6 +122,14 @@ def _default_process(primitive, values, params):
         return default(primitive, values, params)  # pyright: ignore
 
 
+
+def _wrap_if_array(x):
+    if eqx.is_array_like(x):
+        return DenseArrayValue(x)
+    else:
+        return x
+
+
 class _QuaxTrace(core.Trace[_QuaxTracer]):
     def pure(self, val: Union[ArrayLike, "Value"]) -> _QuaxTracer:
         if not _is_value(val):
@@ -146,9 +154,9 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             except plum.NotFoundLookupError:
                 out = _default_process(primitive, values, params)
         if primitive.multiple_results:
-            return [_QuaxTracer(self, x) for x in out]  # pyright: ignore
+            return [_QuaxTracer(self, _wrap_if_array(x)) for x in out]  # pyright: ignore
         else:
-            return _QuaxTracer(self, out)  # pyright: ignore
+            return _QuaxTracer(self, _wrap_if_array(out))  # pyright: ignore
 
     def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
         in_values = [t.value for t in tracers]
@@ -229,11 +237,11 @@ def _wrap_tracer(trace: _QuaxTrace, x):
         return x
 
 
-def _unwrap_tracer(trace, unwrap_builtin_value, x):
+def _unwrap_tracer(trace, x):
     if eqx.is_array_like(x):
         x = trace.full_raise(x)
     if isinstance(x, _QuaxTracer):
-        if unwrap_builtin_value and isinstance(x.value, DenseArrayValue):
+        if isinstance(x.value, DenseArrayValue):
             return x.value.array
         else:
             return x.value
@@ -243,7 +251,6 @@ def _unwrap_tracer(trace, unwrap_builtin_value, x):
 
 class _Quaxify(eqx.Module):
     fn: Callable
-    unwrap_builtin_value: bool
 
     @property
     def __wrapped__(self):
@@ -262,7 +269,7 @@ class _Quaxify(eqx.Module):
             )
             out = fn(*args, **kwargs)
             out = jtu.tree_map(
-                ft.partial(_unwrap_tracer, trace, self.unwrap_builtin_value), out
+                ft.partial(_unwrap_tracer, trace), out
             )
             return out
 
@@ -272,7 +279,7 @@ class _Quaxify(eqx.Module):
         return eqx.Partial(self, instance)
 
 
-def quaxify(fn, unwrap_builtin_value: bool = True):
+def quaxify(fn):
     """Quaxify's a function, so that it understands custom array-ish objects like
     `quax.lora.LoraArray`. When this function is called, multiple dispatch will be
     performed against these types.
@@ -285,12 +292,7 @@ def quaxify(fn, unwrap_builtin_value: bool = True):
 
     A copy of `fn`, that understands all Quax types.
     """
-    return eqx.module_update_wrapper(
-        _Quaxify(fn, unwrap_builtin_value=unwrap_builtin_value)
-    )
-
-
-quaxify_keepwrap = ft.partial(quaxify, unwrap_builtin_value=False)
+    return eqx.module_update_wrapper(_Quaxify(fn))
 
 
 #
@@ -406,7 +408,7 @@ class DenseArrayValue(ArrayValue):
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
 def _(*args: ArrayValue, jaxpr, inline, **kwargs):
     del kwargs
-    fun = quaxify_keepwrap(core.jaxpr_as_fun(jaxpr))
+    fun = quaxify(core.jaxpr_as_fun(jaxpr))
     if inline:
         return fun(*args)
     else:
