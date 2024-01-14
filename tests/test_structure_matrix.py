@@ -5,9 +5,8 @@ import jax.numpy as jnp
 import jax.random as jr
 
 
-_here = pathlib.Path(__file__).resolve().parent
-sys.path.append(str(_here.parent / "examples"))
-import structured_matrices  # pyright: ignore
+import quax
+import quax.examples.structured_matrices as structured_matrices
 
 
 def test_matmul(getkey):

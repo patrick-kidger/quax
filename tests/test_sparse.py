@@ -6,10 +6,8 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 
-
-_here = pathlib.Path(__file__).resolve().parent
-sys.path.append(str(_here.parent / "examples"))
-import sparse  # pyright: ignore
+import quax
+import quax.examples.sparse as sparse
 
 
 def _make_sparse_example(getkey):

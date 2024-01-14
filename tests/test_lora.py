@@ -6,11 +6,12 @@ import jax.random as jr
 import pytest
 
 import quax
+import quax.examples.lora as lora
 
 
 def test_linear(getkey):
     linear = eqx.nn.Linear(10, 12, key=getkey())
-    lora_weight = quax.lora.LoraArray(linear.weight, rank=2, key=getkey())
+    lora_weight = lora.LoraArray(linear.weight, rank=2, key=getkey())
     linear = eqx.tree_at(lambda l: l.weight, linear, lora_weight)
     vector = jr.normal(getkey(), (10,))
     quax.quaxify(linear)(vector)
@@ -19,7 +20,7 @@ def test_linear(getkey):
 
 def test_loraify(getkey):
     mlp = eqx.nn.MLP(2, 2, 64, 3, key=getkey())
-    mlp = quax.lora.loraify(mlp, rank=3, key=getkey())
+    mlp = lora.loraify(mlp, rank=3, key=getkey())
     vector = jr.normal(getkey(), (2,))
     quax.quaxify(mlp)(vector)
     eqx.filter_jit(quax.quaxify(mlp))(vector)
@@ -34,7 +35,7 @@ def test_complicated_dot(getkey):
     rhs_batch = (1, 4)
     dimension_numbers = ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch))
     out = lax.dot_general(lhs, rhs, dimension_numbers)
-    lhs_lora = quax.lora.LoraArray(lhs, rank=11, key=getkey())
+    lhs_lora = lora.LoraArray(lhs, rank=11, key=getkey())
     out_lora = quax.quaxify(lax.dot_general)(lhs_lora, rhs, dimension_numbers)
     assert out.shape == out_lora.shape
 
@@ -46,8 +47,8 @@ def test_complicated_dot(getkey):
 
 def test_stop_gradient(getkey):
     mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
-    mlp_true = quax.lora.loraify(mlp, rank=3, stop_gradient=True, key=getkey())
-    mlp_false = quax.lora.loraify(mlp, rank=3, stop_gradient=False, key=getkey())
+    mlp_true = lora.loraify(mlp, rank=3, stop_gradient=True, key=getkey())
+    mlp_false = lora.loraify(mlp, rank=3, stop_gradient=False, key=getkey())
     vector = jr.normal(getkey(), (2,))
 
     @eqx.filter_jit
@@ -72,7 +73,7 @@ def test_stop_gradient(getkey):
 
 def test_decorator_stack_runs(getkey):
     mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
-    mlp = quax.lora.loraify(mlp, rank=3, key=getkey())
+    mlp = lora.loraify(mlp, rank=3, key=getkey())
     vector = jr.normal(getkey(), (2,))
 
     @eqx.filter_jit
@@ -95,10 +96,10 @@ def test_decorator_stack_runs(getkey):
 
 
 def test_materialise(getkey):
-    x_false = quax.lora.LoraArray(
+    x_false = lora.LoraArray(
         jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=False, key=getkey()
     )
-    x_true = quax.lora.LoraArray(
+    x_true = lora.LoraArray(
         jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=True, key=getkey()
     )
 

@@ -7,11 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 import quax
-
-
-_here = pathlib.Path(__file__).resolve().parent
-sys.path.append(str(_here.parent / "examples"))
-import prng  # pyright: ignore
+import quax.examples.prng as prng
 
 
 def test_uniform():
