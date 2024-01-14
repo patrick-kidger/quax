@@ -22,7 +22,7 @@ from jaxtyping import ArrayLike
 #
 
 
-_rules: dict[core.Primitive, Callable] = {}
+_rules: dict[core.Primitive, plum.Function] = {}
 
 
 def register(primitive: core.Primitive):
@@ -146,16 +146,20 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
 
     def process_primitive(self, primitive, tracers, params):
         values = [t.value for t in tracers]
-        values = [x.array if isinstance(x, _DenseArrayValue) else x for x in values]
+        values = tuple(
+            x.array if isinstance(x, _DenseArrayValue) else x for x in values
+        )
         try:
             rule = _rules[primitive]
         except KeyError:
             out = _default_process(primitive, values, params)
         else:
             try:
-                out = rule(*values, **params)
+                method, _ = rule.resolve_method(values)
             except plum.NotFoundLookupError:
                 out = _default_process(primitive, values, params)
+            else:
+                out = method(*values, **params)
         if primitive.multiple_results:
             return [_QuaxTracer(self, _wrap_if_array(x)) for x in out]  # pyright: ignore
         else:
