@@ -303,7 +303,7 @@ class Value(eqx.Module):
 
     In practice you will probably want to inherit from [`quax.ArrayValue`][] instead,
     which represents specifically an array-like object that can be used for multiple
-    dispatch. (It adds a number of methods like `__add__`, `.shape`, etc.)
+    dispatch.
     """
 
     @abc.abstractmethod
@@ -351,13 +351,6 @@ def _is_value(x):
     return isinstance(x, Value)
 
 
-def _flip_binop(binop):
-    def _binop(x, y):
-        return binop(y, x)
-
-    return _binop
-
-
 class ArrayValue(Value):
     """A [`quax.Value`][] for specifically array-like types. If you are creating a
     custom array-ish object then you should typically inherit from this.
@@ -394,33 +387,8 @@ class ArrayValue(Value):
         return self.aval().size
 
     @property
-    def itemsize(self):
-        return self.aval().itemsize  # pyright: ignore
-
-    @property
     def shape(self):
         return self.aval().shape
-
-    @property
-    def sharding(self):
-        raise ValueError("ArrayValues do not have a notion of sharding.")
-
-    @property
-    def addressable_shards(self):
-        raise ValueError("ArrayValues do not have a notion of sharding.")
-
-    __add__ = quaxify(operator.add)
-    __radd__ = quaxify(_flip_binop(operator.add))
-    __sub__ = quaxify(operator.sub)
-    __rsub__ = quaxify(_flip_binop(operator.sub))
-    __mul__ = quaxify(operator.mul)
-    __rmul__ = quaxify(_flip_binop(operator.mul))
-    __matmul__ = quaxify(operator.matmul)
-    __rmatmul__ = quaxify(_flip_binop(operator.matmul))
-    __pow__ = quaxify(operator.pow)
-    __rpow__ = quaxify(_flip_binop(operator.pow))
-
-    # TODO: add all other methods and properties and things
 
 
 class DenseArrayValue(ArrayValue):
