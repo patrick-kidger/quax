@@ -2,7 +2,7 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import Array, Integer, Shaped
+from jaxtyping import Array, ArrayLike, Integer, Shaped
 
 import quax
 
@@ -118,15 +118,15 @@ def _(x: BCOO, y: BCOO):
 
 
 @quax.register(lax.add_p)
-def _add_bcoo_dense(x: BCOO, y: quax.DenseArrayValue) -> quax.DenseArrayValue:
+def _add_bcoo_dense(x: BCOO, y: ArrayLike) -> ArrayLike:
     x, y = quax.quaxify(jnp.broadcast_arrays, unwrap_builtin_value=False)(x, y)
     y_array = jnp.asarray(y.array)
     add = lambda z, i, d: z.at[i].add(d)
-    return quax.DenseArrayValue(_op_sparse_to_dense(x, y_array, add))
+    return _op_sparse_to_dense(x, y_array, add)
 
 
 @quax.register(lax.add_p)
-def _(x: quax.DenseArrayValue, y: BCOO) -> quax.DenseArrayValue:
+def _(x: ArrayLike, y: BCOO) -> ArrayLike:
     return _add_bcoo_dense(y, x)
 
 
@@ -139,7 +139,7 @@ def _(x: BCOO, y: BCOO):
 
 
 @quax.register(lax.mul_p)
-def _mul_bcoo_dense(x: BCOO, y: quax.DenseArrayValue) -> BCOO:
+def _mul_bcoo_dense(x: BCOO, y: ArrayLike) -> BCOO:
     x, y = quax.quaxify(jnp.broadcast_arrays, unwrap_builtin_value=False)(x, y)
     indices = tuple(jnp.moveaxis(x.indices, -1, 0))
     # TODO: unify with _sparse_to_dense, above?
@@ -153,5 +153,5 @@ def _mul_bcoo_dense(x: BCOO, y: quax.DenseArrayValue) -> BCOO:
 
 
 @quax.register(lax.mul_p)
-def _(x: quax.DenseArrayValue, y: BCOO) -> BCOO:
+def _(x: ArrayLike, y: BCOO) -> BCOO:
     return _mul_bcoo_dense(y, x)
