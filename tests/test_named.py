@@ -8,11 +8,7 @@ import jax.random as jr
 import pytest
 
 import quax
-
-
-_here = pathlib.Path(__file__).resolve().parent
-sys.path.append(str(_here.parent / "examples"))
-import named  # pyright: ignore
+import quax.examples.named as named
 
 
 def test_init(getkey):
