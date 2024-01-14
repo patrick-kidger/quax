@@ -125,7 +125,7 @@ def _default_process(
         return default(primitive, values, params)  # pyright: ignore
 
 
-def _wrap_if_array(x):
+def _wrap_if_array(x: Union[ArrayLike, "Value"]) -> "Value":
     if eqx.is_array_like(x):
         return _DenseArrayValue(x)
     else:
@@ -133,10 +133,37 @@ def _wrap_if_array(x):
 
 
 class _QuaxTrace(core.Trace[_QuaxTracer]):
-    def pure(self, val: Union[ArrayLike, "Value"]) -> _QuaxTracer:
-        if not _is_value(val):
-            val = _DenseArrayValue(val)  # pyright: ignore
-        return _QuaxTracer(self, val)  # pyright: ignore
+    def pure(self, val: ArrayLike) -> _QuaxTracer:
+        if _is_value(val):
+            raise TypeError(
+                f"Encountered Quax value of type {type(val)}. These must be "
+                "transformed by passing them across a `quax.quaxify` boundary before "
+                "being used.\n"
+                "For example, the following is incorrect, as `SomeValue()` is not "
+                "explicitly passed across the API boundary:\n"
+                "```\n"
+                "def f(x):\n"
+                "    return x + SomeValue()\n"
+                "\n"
+                "quax.quaxify(f)(AnotherValue())"
+                "```\n"
+                "This should instead be written as the following:\n"
+                "explicitly passed across the API boundary:\n"
+                "```\n"
+                "def f(x, y):\n"
+                "    return x + y\n"
+                "\n"
+                "quax.quaxify(f)(AnotherValue(), SomeValue())"
+                "```\n"
+                "To better understand this, remember that the purpose of Quax is "
+                "take a JAX program (given as a function) that acts on arrays, and to "
+                "instead run it with array-ish types. But in the first example above, "
+                "the original program already has an array-ish type, even before the "
+                "`quaxify` is introduced."
+            )
+        if not eqx.is_array_like(val):
+            raise TypeError(f"{type(val)} is not a JAX type.")
+        return _QuaxTracer(self, _DenseArrayValue(val))  # pyright: ignore
 
     def lift(self, tracer: core.Tracer) -> _QuaxTracer:
         return _QuaxTracer(self, _DenseArrayValue(tracer))
