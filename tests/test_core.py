@@ -34,10 +34,10 @@ def test_default_override():
         @staticmethod
         def default(primitive, values, params):
             arrays = [
-                x.array if isinstance(x, Record) else x.materialise() for x in values
+                x.array if isinstance(x, Record) else x for x in values
             ]
             records.append(primitive)
-            out = primitive.bind(*arrays, **params)
+            out = quax.quaxify(primitive.bind)(*arrays, **params)
             if primitive.multiple_results:
                 return [Record(x) for x in out]
             else:

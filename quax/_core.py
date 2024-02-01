@@ -194,6 +194,8 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
 
     def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
         in_values = [t.value for t in tracers]
+        # Each `t.value` will be some `Value`, and thus a PyTree. Here we flatten the
+        # `Value`-ness away.
         in_leaves, in_treedef = jtu.tree_flatten(in_values)
         fun, out_treedef1 = _custom_jvp_fun_wrap(fun, self.main, in_treedef)  # pyright: ignore
         jvp, out_treedef2 = _custom_jvp_jvp_wrap(jvp, self.main, in_treedef)  # pyright: ignore
@@ -231,7 +233,9 @@ def _custom_jvp_jvp_wrap(main, in_treedef, *in_primals_and_tangents):
     in_tangents = in_primals_and_tangents[len(in_primals_and_tangents) // 2 :]
     in_primal_values = jtu.tree_unflatten(in_treedef, in_primals)
     in_tangent_values = jtu.tree_unflatten(in_treedef, in_tangents)
-    in_tracers = [trace.pure(x) for x in it.chain(in_primal_values, in_tangent_values)]
+    # Calling `_QuaxTracer` directly here, not using `trace.{pure,lift}` as each `x` is
+    # a `Value`, not an array (=> pure) or tracer (=> lift).
+    in_tracers = [_QuaxTracer(trace, x) for x in it.chain(in_primal_values, in_tangent_values)]
     out_tracers = yield in_tracers, {}
     # The symbolic zero branch here will actually create a `quax.zero.Zero`!
     out_tracers = [
@@ -440,7 +444,7 @@ class _DenseArrayValue(ArrayValue):
 
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
-def _(*args: ArrayValue, jaxpr, inline, **kwargs):
+def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
     del kwargs
     fun = quaxify(core.jaxpr_as_fun(jaxpr))
     if inline:

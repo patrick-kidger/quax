@@ -1,8 +1,10 @@
+from typing import Union
+
 import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import Array, Shaped
+from jaxtyping import Array, ArrayLike, Shaped
 
 import quax
 
@@ -12,7 +14,7 @@ class TridiagonalMatrix(quax.ArrayValue):
     diagonals.
     """
 
-    lower_diag: Shaped[Array, "*batch size-1"]
+    lower_diag: 'Shaped[Array, "*batch size-1"]'
     main_diag: Shaped[Array, "*batch size"]
     upper_diag: Shaped[Array, "*batch size-1"]
     allow_materialise: bool = eqx.field(default=False, static=True)
@@ -56,7 +58,7 @@ class TridiagonalMatrix(quax.ArrayValue):
         return jax.core.ShapedArray(shape, self.main_diag.dtype)
 
 
-def _tridiagonal_matvec(lower_diag, main_diag, upper_diag, vector):
+def _tridiagonal_matvec(lower_diag: Array, main_diag: Array, upper_diag: Array, vector: Array):
     (size1,) = lower_diag.shape
     (size2,) = main_diag.shape
     (size3,) = upper_diag.shape
@@ -71,7 +73,7 @@ def _tridiagonal_matvec(lower_diag, main_diag, upper_diag, vector):
 
 
 @quax.register(lax.dot_general_p)
-def _(lhs: TridiagonalMatrix, rhs: quax.ArrayValue, *, dimension_numbers, **kwargs):
+def _(lhs: TridiagonalMatrix, rhs: Union[ArrayLike, quax.ArrayValue], *, dimension_numbers, **kwargs):
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     lhs_ndim = lhs.ndim
     if lhs_contract == (lhs_ndim - 1,) and (lhs_ndim - 2 not in lhs_batch):
@@ -89,10 +91,10 @@ def _(lhs: TridiagonalMatrix, rhs: quax.ArrayValue, *, dimension_numbers, **kwar
             matvec = jax.vmap(matvec, in_axes=(lhs_i, lhs_i, lhs_i, None))
         for rhs_i in rhs_unused:
             matvec = jax.vmap(matvec, in_axes=(None, None, None, rhs_i), out_axes=-1)
-        return quax.quaxify(matvec, unwrap_builtin_value=False)(
+        return quax.quaxify(matvec)(
             lhs.lower_diag, lhs.main_diag, lhs.upper_diag, rhs
         )
     else:
-        return quax.quaxify(lax.dot_general, unwrap_builtin_value=False)(
+        return quax.quaxify(lax.dot_general)(
             lhs.materialise(), rhs, dimension_numbers, **kwargs
         )

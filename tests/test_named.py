@@ -33,7 +33,7 @@ def test_add(getkey):
     a = named.NamedArray(a, (Foo, Bar))
     b = jr.normal(getkey(), (3, 3))
     b = named.NamedArray(b, (Foo, Bar))
-    out1 = a + b
+    out1 = quax.quaxify(lambda x, y: x + y)(a, b)
     out2 = quax.quaxify(lax.add)(a, b)
     true_out = named.NamedArray(a.array + b.array, (Foo, Bar))
     assert out1 == true_out
@@ -49,11 +49,11 @@ def test_matmul(getkey):
     b = jr.normal(getkey(), (3, 3))
     b = named.NamedArray(b, (Bar, Qux))
 
-    _ = a @ b
+    quax.quaxify(lambda x, y: x @ y)(a, b)
     quax.quaxify(jnp.matmul)(a, b)
 
     with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
-        _ = b @ a
+        quax.quaxify(lambda x, y: x @ y)(b, a)
     with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
         quax.quaxify(jnp.matmul)(b, a)
 

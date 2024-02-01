@@ -110,7 +110,9 @@ def _(x: BCOO, y: BCOO):
             "`BCOO(...) + BCOO(...)` currently requires that both matrices have the "
             "same number of sparse dimensions."
         )
-    x, y = quax.quaxify(jnp.broadcast_arrays, unwrap_builtin_value=False)(x, y)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    assert isinstance(x, BCOO)
+    assert isinstance(y, BCOO)
     data = jnp.concatenate([x.data, y.data], axis=-1)
     indices = jnp.concatenate([x.indices, y.indices], axis=-2)
     allow_materialise = x.allow_materialise and y.allow_materialise
@@ -119,10 +121,12 @@ def _(x: BCOO, y: BCOO):
 
 @quax.register(lax.add_p)
 def _add_bcoo_dense(x: BCOO, y: ArrayLike) -> ArrayLike:
-    x, y = quax.quaxify(jnp.broadcast_arrays, unwrap_builtin_value=False)(x, y)
-    y_array = jnp.asarray(y.array)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    assert isinstance(x, BCOO)
+    assert isinstance(y, ArrayLike)
+    y = jnp.asarray(y)
     add = lambda z, i, d: z.at[i].add(d)
-    return _op_sparse_to_dense(x, y_array, add)
+    return _op_sparse_to_dense(x, y, add)
 
 
 @quax.register(lax.add_p)
@@ -140,14 +144,17 @@ def _(x: BCOO, y: BCOO):
 
 @quax.register(lax.mul_p)
 def _mul_bcoo_dense(x: BCOO, y: ArrayLike) -> BCOO:
-    x, y = quax.quaxify(jnp.broadcast_arrays, unwrap_builtin_value=False)(x, y)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    assert isinstance(x, BCOO)
+    assert isinstance(y, ArrayLike)
+    y = jnp.asarray(y)
     indices = tuple(jnp.moveaxis(x.indices, -1, 0))
     # TODO: unify with _sparse_to_dense, above?
     getindex = lambda a, b: a[b]
     for _ in range(x.data.ndim - 1):
         getindex = jax.vmap(getindex)
     # ~
-    y_data = getindex(y.array, indices)
+    y_data = getindex(y, indices)
     data = x.data * y_data
     return BCOO(data, x.indices, x.shape, x.allow_materialise)
 
