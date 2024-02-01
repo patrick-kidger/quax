@@ -37,7 +37,7 @@ def test_add():
     vector_zero = zero.Zero((2,), jnp.bool_)
     tensor_zero = zero.Zero((3, 3, 3), jnp.int32)
 
-    for add in (lambda x, y: x + y, quax.quaxify(jnp.add)):
+    for add in (quax.quaxify(lambda x, y: x + y), quax.quaxify(jnp.add)):
         assert tree_allclose(add(scalar_zero, 1), jnp.array(1.0))
         assert eqx.tree_equal(add(scalar_zero, jnp.array(1)), jnp.array(1.0))
         assert tree_allclose(add(1, scalar_zero), jnp.array(1.0))
@@ -65,7 +65,7 @@ def test_mul():
     out_vector_zero = zero.Zero((2,), jnp.int32)
     tensor_zero = zero.Zero((3, 3, 3), jnp.int32)
 
-    for mul in (lambda x, y: x * y, quax.quaxify(jnp.multiply)):
+    for mul in (quax.quaxify(lambda x, y: x * y), quax.quaxify(jnp.multiply)):
         assert tree_allclose(mul(scalar_zero, 1), scalar_zero)
         assert eqx.tree_equal(mul(scalar_zero, jnp.array(1)), scalar_zero)
         assert tree_allclose(mul(1, scalar_zero), scalar_zero)
@@ -127,16 +127,18 @@ def test_creation():
 
         out = run(1)
         out2 = quax.quaxify(jnp.zeros)((3, 4))
-        zero = zero.Zero((3, 4), jnp.float32)
-        assert eqx.tree_equal(out, zero)
-        assert eqx.tree_equal(out2, zero)
+        z = zero.Zero((3, 4), jnp.float32)
+        assert eqx.tree_equal(out, z)
+        assert eqx.tree_equal(out2, z)
 
 
 def test_pow():
     z = zero.Zero((3, 4), jnp.float32)
 
+    power = quax.quaxify(pow)
+
     # Standard power
-    out = z**3
+    out = power(z, 3)
     assert isinstance(out, zero.Zero)
     assert out.shape == (3, 4)
 
@@ -148,21 +150,21 @@ def test_pow():
     assert jnp.array(0) ** jnp.array(0) == 1
     assert jnp.array(0.0) ** jnp.array(0) == 1
 
-    out = z**0
+    out = power(z, 0)
     assert not isinstance(out, zero.Zero)
     ones = jnp.ones((3, 4), jnp.float32)
     assert jnp.array_equal(out, ones)
 
     # More complex zero powers
-    out = z ** jnp.array(0)
+    out = power(z, jnp.array(0))
     assert not isinstance(out, zero.Zero)
     assert jnp.array_equal(out, ones)
 
-    out = z**z
+    out = power(z, z)
     assert not isinstance(out, zero.Zero)
     assert jnp.array_equal(out, ones)
 
     # Reverse power
-    out = 3**z
+    out = power(3, z)
     assert not isinstance(out, zero.Zero)
     assert jnp.array_equal(out, ones)

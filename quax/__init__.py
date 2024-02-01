@@ -1,6 +1,5 @@
 import importlib.metadata
 
-from . import examples as examples
 from ._core import (
     ArrayValue as ArrayValue,
     quaxify as quaxify,
@@ -8,6 +7,9 @@ from ._core import (
     Value as Value,
 )
 
+
+# After Quax core is imported.
+from . import examples as examples
 lora = examples.lora  # backward compatibility
 zero = examples.zero  # backward compatibility
 

@@ -1,6 +1,6 @@
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import equinox as eqx
 import jax.core
@@ -97,22 +97,24 @@ def _broadcast_axes(axes1, axes2):
 def _register_elementwise_binop(
     op: Callable[[Any, Any], Any], prim: jax.core.Primitive
 ):
+    quax_op = quax.quaxify(op)
+
     @quax.register(prim)
     def _(x: NamedArray, y: NamedArray) -> NamedArray:
         axes = _broadcast_axes(x.axes, y.axes)
-        return NamedArray(op(x.array, y.array), axes)
+        return NamedArray(quax_op(x.array, y.array), axes)
 
     @quax.register(prim)
-    def _(x: quax.ArrayValue, y: NamedArray) -> NamedArray:
-        if x.shape == ():
-            return NamedArray(op(x, y.array), y.axes)
+    def _(x: Union[ArrayLike, quax.ArrayValue], y: NamedArray) -> NamedArray:
+        if quax.quaxify(jnp.shape)(x) == ():
+            return NamedArray(quax_op(x, y.array), y.axes)
         else:
             raise ValueError(f"Cannot apply {op} to non-scalar array and named array.")
 
     @quax.register(prim)
-    def _(x: NamedArray, y: quax.ArrayValue) -> NamedArray:
-        if y.shape == ():
-            return NamedArray(op(x.array, y), x.axes)
+    def _(x: NamedArray, y: Union[ArrayLike, quax.ArrayValue]) -> NamedArray:
+        if quax.quaxify(jnp.shape)(y) == ():
+            return NamedArray(quax_op(x.array, y), x.axes)
         else:
             raise ValueError(f"Cannot apply {op} to non-scalar array and named array.")
 

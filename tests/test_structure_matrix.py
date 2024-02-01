@@ -16,8 +16,9 @@ def test_matmul(getkey):
     x = structured_matrices.TridiagonalMatrix(lower_diag, main_diag, upper_diag)
     y = jnp.array([[0, 5, 0, 0], [0, 1, 6, 0], [0, 1, 2, 7], [0, 0, 2, 3]])
     v = jr.normal(getkey(), (4,))
-    out = x @ v
-    out2 = y @ v
+    matmul = quax.quaxify(lambda a, b: a @ b)
+    out = matmul(x, v)
+    out2 = matmul(y, v)
     assert jnp.allclose(out, out2)
 
 

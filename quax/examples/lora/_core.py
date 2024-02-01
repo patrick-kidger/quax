@@ -1,15 +1,17 @@
+from typing import Union
+
 import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import jax.tree_util as jtu
-from jaxtyping import Array, PRNGKeyArray, PyTree, Shaped
+from jaxtyping import Array, ArrayLike, PRNGKeyArray, PyTree, Shaped
 
-from .._core import ArrayValue, quaxify, register
+import quax
 
 
-class LoraArray(ArrayValue):
+class LoraArray(quax.ArrayValue):
     """Replaces a matrix `w in R^{n x m}` with `w + a @ b`, where `a in R^{n x k}` and
     `b in R^{k x m}`.
 
@@ -165,7 +167,7 @@ def loraify(
     return jtu.tree_map(_loraify, model, is_leaf=_is_linear)
 
 
-@quaxify
+@quax.quaxify
 def _lora_array_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kwargs):
     n_sharedbatch = len(lhs_batch)  # = len(rhs_batch)
     # All of the lora batch dimensions that aren't a dot_general batch dimension.
@@ -185,10 +187,10 @@ def _lora_array_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kw
     return out1 + out3
 
 
-@register(lax.dot_general_p)
+@quax.register(lax.dot_general_p)
 def _lora_array_matmul(
-    lhs: LoraArray, rhs: ArrayValue, *, dimension_numbers, **kwargs
-) -> ArrayValue:
+    lhs: LoraArray, rhs: Union[ArrayLike, quax.ArrayValue], *, dimension_numbers, **kwargs
+) -> Union[ArrayLike, quax.ArrayValue]:
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     [ndim] = {lhs.a.ndim, lhs.b.ndim, lhs.w.ndim}
     if lhs_contract == (ndim - 1,) and (ndim - 2 not in lhs_batch):
@@ -210,13 +212,13 @@ def _lora_array_matmul(
             kwargs,
         )
     else:
-        return quaxify(lax.dot_general)(
+        return quax.quaxify(lax.dot_general)(
             lhs.materialise(), rhs, dimension_numbers, **kwargs
         )
 
 
-@register(lax.dot_general_p)
-def _(lhs: ArrayValue, rhs: LoraArray, *, dimension_numbers, **kwargs) -> ArrayValue:
+@quax.register(lax.dot_general_p)
+def _(lhs: Union[ArrayLike, quax.ArrayValue], rhs: LoraArray, *, dimension_numbers, **kwargs) -> Union[ArrayLike, quax.ArrayValue]:
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     dimension_numbers_flipped = ((rhs_contract, lhs_contract), (rhs_batch, lhs_batch))
     out = _lora_array_matmul(
@@ -227,4 +229,4 @@ def _(lhs: ArrayValue, rhs: LoraArray, *, dimension_numbers, **kwargs) -> ArrayV
     n_rhs_uncontracted = rhs.aval().ndim - len(rhs_contract) - len(rhs_batch)
     src = tuple(range(n_sharedbatch, n_sharedbatch + n_rhs_uncontracted))
     dest = tuple(range(-n_rhs_uncontracted, 0))
-    return quaxify(jnp.moveaxis)(out, src, dest)
+    return quax.quaxify(jnp.moveaxis)(out, src, dest)

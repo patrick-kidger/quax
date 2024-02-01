@@ -53,9 +53,10 @@ def test_add_dense(getkey):
     y1 = jr.normal(getkey(), (1, 4))
     # TODO: change to (3, 1, 5, 1, 4) to test broadcasting
     y2 = jr.normal(getkey(), (3, 2, 5, 1, 4))
-    out0 = x + y0
-    out1 = x + y1
-    out2 = x + y2
+    add = quax.quaxify(lambda a, b: a + b)
+    out0 = add(x, y0)
+    out1 = add(x, y1)
+    out2 = add(x, y2)
 
     @jax.vmap
     def _add0(i, d):
@@ -86,8 +87,9 @@ def test_add_dense(getkey):
 def test_add_sparse(getkey):
     x = _make_sparse_example(getkey)
     y = _make_sparse_example2(getkey)
-    z = x + y
-    w = x + x
+    add = quax.quaxify(lambda a, b: a + b)
+    z = add(x, y)
+    w = add(x, x)
     x_mat = x.enable_materialise().materialise()
     y_mat = y.enable_materialise().materialise()
     z_mat = z.enable_materialise().materialise()
@@ -114,9 +116,10 @@ def test_mul(getkey):
     y0 = 3
     y1 = jr.normal(getkey(), (5, 1, 4))
     y2 = jr.normal(getkey(), (2, 5, 1, 4))
-    out0 = x * y0
-    out1 = x * y1
-    out2 = x * y2
+    mul = quax.quaxify(lambda a, b: a * b)
+    out0 = mul(x, y0)
+    out1 = mul(x, y1)
+    out2 = mul(x, y2)
 
     true_out0 = sparse.BCOO(data * 3, indices, shape)
     assert eqx.tree_equal(out0, true_out0)

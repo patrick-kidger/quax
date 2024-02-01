@@ -103,6 +103,6 @@ def test_materialise(getkey):
         jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=True, key=getkey()
     )
 
-    _ = x_true + 1
+    _ = quax.quaxify(jax.nn.relu)(x_true)
     with pytest.raises(RuntimeError, match="Refusing to materialise"):
         _ = quax.quaxify(jax.nn.relu)(x_false)
