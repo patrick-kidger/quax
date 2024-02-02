@@ -1,5 +1,5 @@
 import functools as ft
-from typing import Any, Union
+from typing import Any, get_args, Union
 
 import equinox as eqx
 import jax.core
@@ -41,7 +41,9 @@ class Zero(quax.ArrayValue):
 
 
 @quax.register(lax.broadcast_in_dim_p)
-def _(value: ArrayLike, *, broadcast_dimensions, shape) -> Union[ArrayLike, quax.ArrayValue]:
+def _(
+    value: ArrayLike, *, broadcast_dimensions, shape
+) -> Union[ArrayLike, quax.ArrayValue]:
     aval = jax.core.get_aval(value)
     if isinstance(aval, jax.core.ConcreteArray) and aval.shape == () and aval.val == 0:
         return Zero(shape, np.result_type(value))
@@ -71,7 +73,7 @@ def _to_struct(x):
     if isinstance(x, quax.ArrayValue):
         aval = x.aval()
         return jax.ShapeDtypeStruct(aval.shape, aval.dtype)
-    elif isinstance(x, ArrayLike):
+    elif isinstance(x, get_args(ArrayLike)):
         return jax.ShapeDtypeStruct(jnp.shape(x), jnp.result_type(x))
     else:
         assert False
@@ -87,12 +89,16 @@ def _shape_dtype(x, y, value):
 
 
 @quax.register(lax.add_p)
-def _(x: Union[ArrayLike, quax.ArrayValue], y: Zero) -> Union[ArrayLike, quax.ArrayValue]:
+def _(
+    x: Union[ArrayLike, quax.ArrayValue], y: Zero
+) -> Union[ArrayLike, quax.ArrayValue]:
     return _shape_dtype(x, y, value=x)
 
 
 @quax.register(lax.add_p)
-def _(x: Zero, y: Union[ArrayLike, quax.ArrayValue]) -> Union[ArrayLike, quax.ArrayValue]:
+def _(
+    x: Zero, y: Union[ArrayLike, quax.ArrayValue]
+) -> Union[ArrayLike, quax.ArrayValue]:
     return _shape_dtype(x, y, value=y)
 
 
@@ -142,9 +148,7 @@ def _(operand: Zero, *, start_indices, limit_indices, strides) -> Zero:
 def _zero_matmul(lhs, rhs, kwargs) -> Zero:
     lhs = _to_struct(lhs)
     rhs = _to_struct(rhs)
-    out_struct = jax.eval_shape(
-        ft.partial(lax.dot_general_p.bind, **kwargs), lhs, rhs
-    )
+    out_struct = jax.eval_shape(ft.partial(lax.dot_general_p.bind, **kwargs), lhs, rhs)
     return Zero(out_struct.shape, out_struct.dtype)
 
 

@@ -189,7 +189,11 @@ def _lora_array_matmul_impl(w, a, b, rhs, lhs_batch, ndim, dimension_numbers, kw
 
 @quax.register(lax.dot_general_p)
 def _lora_array_matmul(
-    lhs: LoraArray, rhs: Union[ArrayLike, quax.ArrayValue], *, dimension_numbers, **kwargs
+    lhs: LoraArray,
+    rhs: Union[ArrayLike, quax.ArrayValue],
+    *,
+    dimension_numbers,
+    **kwargs,
 ) -> Union[ArrayLike, quax.ArrayValue]:
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     [ndim] = {lhs.a.ndim, lhs.b.ndim, lhs.w.ndim}
@@ -218,7 +222,13 @@ def _lora_array_matmul(
 
 
 @quax.register(lax.dot_general_p)
-def _(lhs: Union[ArrayLike, quax.ArrayValue], rhs: LoraArray, *, dimension_numbers, **kwargs) -> Union[ArrayLike, quax.ArrayValue]:
+def _(
+    lhs: Union[ArrayLike, quax.ArrayValue],
+    rhs: LoraArray,
+    *,
+    dimension_numbers,
+    **kwargs,
+) -> Union[ArrayLike, quax.ArrayValue]:
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     dimension_numbers_flipped = ((rhs_contract, lhs_contract), (rhs_batch, lhs_batch))
     out = _lora_array_matmul(

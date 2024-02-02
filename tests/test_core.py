@@ -1,5 +1,6 @@
 from typing import cast
 
+import equinox as eqx
 import jax
 import jax.core
 import jax.lax as lax
@@ -33,9 +34,7 @@ def test_default_override():
 
         @staticmethod
         def default(primitive, values, params):
-            arrays = [
-                x.array if isinstance(x, Record) else x for x in values
-            ]
+            arrays = [x.array if isinstance(x, Record) else x for x in values]
             records.append(primitive)
             out = quax.quaxify(primitive.bind)(*arrays, **params)
             if primitive.multiple_results:
@@ -76,9 +75,16 @@ def test_double_override():
 
             @staticmethod
             def default(primitive, values, params):
-                arrays = [
-                    x.array if isinstance(x, Foo) else x.materialise() for x in values
-                ]
+                arrays = []
+                for value in values:
+                    if isinstance(x, Foo):
+                        arrays.append(x.array)
+                    elif isinstance(x, quax.Value):
+                        arrays.append(x.materialise())
+                    elif eqx.is_array_like(x):
+                        arrays.append(x)
+                    else:
+                        assert False
                 out = primitive.bind(*arrays, **params)
                 if primitive.multiple_results:
                     return [Foo(x) for x in out]

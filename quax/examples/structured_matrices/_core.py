@@ -58,7 +58,9 @@ class TridiagonalMatrix(quax.ArrayValue):
         return jax.core.ShapedArray(shape, self.main_diag.dtype)
 
 
-def _tridiagonal_matvec(lower_diag: Array, main_diag: Array, upper_diag: Array, vector: Array):
+def _tridiagonal_matvec(
+    lower_diag: Array, main_diag: Array, upper_diag: Array, vector: Array
+):
     (size1,) = lower_diag.shape
     (size2,) = main_diag.shape
     (size3,) = upper_diag.shape
@@ -73,11 +75,17 @@ def _tridiagonal_matvec(lower_diag: Array, main_diag: Array, upper_diag: Array, 
 
 
 @quax.register(lax.dot_general_p)
-def _(lhs: TridiagonalMatrix, rhs: Union[ArrayLike, quax.ArrayValue], *, dimension_numbers, **kwargs):
+def _(
+    lhs: TridiagonalMatrix,
+    rhs: Union[ArrayLike, quax.ArrayValue],
+    *,
+    dimension_numbers,
+    **kwargs,
+):
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     lhs_ndim = lhs.ndim
     if lhs_contract == (lhs_ndim - 1,) and (lhs_ndim - 2 not in lhs_batch):
-        rhs_ndim = rhs.ndim
+        rhs_ndim = quax.quaxify(jnp.ndim)(rhs)
         lhs_used = set(lhs_contract + lhs_batch)
         lhs_used.add(lhs_ndim - 2)
         rhs_used = set(rhs_contract + rhs_batch)
@@ -91,9 +99,7 @@ def _(lhs: TridiagonalMatrix, rhs: Union[ArrayLike, quax.ArrayValue], *, dimensi
             matvec = jax.vmap(matvec, in_axes=(lhs_i, lhs_i, lhs_i, None))
         for rhs_i in rhs_unused:
             matvec = jax.vmap(matvec, in_axes=(None, None, None, rhs_i), out_axes=-1)
-        return quax.quaxify(matvec)(
-            lhs.lower_diag, lhs.main_diag, lhs.upper_diag, rhs
-        )
+        return quax.quaxify(matvec)(lhs.lower_diag, lhs.main_diag, lhs.upper_diag, rhs)
     else:
         return quax.quaxify(lax.dot_general)(
             lhs.materialise(), rhs, dimension_numbers, **kwargs

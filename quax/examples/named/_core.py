@@ -1,6 +1,6 @@
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any, Generic, Optional, TypeVar, Union
 
 import equinox as eqx
 import jax.core
@@ -28,10 +28,13 @@ Axis.__init__.__doc__ = """**Arguments:**
 """
 
 
-class NamedArray(quax.ArrayValue):
+_Array = TypeVar("_Array", bound=ArrayLike)
+
+
+class NamedArray(quax.ArrayValue, Generic[_Array]):
     """Represents an array, with each axis bound to a name."""
 
-    array: ArrayLike
+    array: _Array
     axes: tuple[Axis, ...] = eqx.field(static=True)
     allow_materialise: bool = eqx.field(default=False, static=True)
 
