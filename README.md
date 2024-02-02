@@ -1,6 +1,9 @@
-# Quax
+<h1 align="center">Quax</h1>
+<h2 align="center">JAX + multiple dispatch + custom array-ish objects</h2>
 
-JAX + multiple dispatch + custom array-ish objects, e.g.:
+For example, this can be mean overloading matrix multiplication to exploit sparsity or structure, or automatically rewriting a LoRA's matmul `(W + AB)v` into the more-efficient `Wv + ABv`.
+
+Applications include:
 
 - LoRA weight matrices
 - symbolic zeros
@@ -10,8 +13,6 @@ JAX + multiple dispatch + custom array-ish objects, e.g.:
 - quantised arrays
 - arrays with physical units attached
 - etc! (See the built-in `quax.examples` library for most of the above!)
-
-For example, this can be mean overloading matrix multiplication to exploit sparsity or structure, or automatically rewriting a LoRA's matmul `(W + AB)v` into the more-efficient `Wv + ABv`.
 
 This works via a custom JAX transform. Take an existing JAX program, wrap it in a `quax.quaxify`, and then pass in the custom array-ish objects. This means it will work even with existing programs, that were not written to accept such array-ish objects!
 
@@ -31,7 +32,40 @@ Available at https://docs.kidger.site/quax.
 
 This example demonstrates everything you need to use the built-in `quax.examples.lora` library.
 
---8<-- ".lora-example.md"
+```python
+import equinox as eqx
+import jax.random as jr
+import quax
+import quax.examples.lora as lora
+
+#
+# Start off with any JAX program: here, the forward pass through a linear layer.
+#
+
+key1, key2, key3 = jr.split(jr.PRNGKey(0), 3)
+linear = eqx.nn.Linear(10, 12, key=key1)
+vector = jr.normal(key2, (10,))
+
+def run(model, x):
+  return model(x)
+
+run(linear, vector)  # can call this as normal
+
+#
+# Now let's Lora-ify it.
+#
+
+# Step 1: make the weight be a LoraArray.
+lora_weight = lora.LoraArray(linear.weight, rank=2, key=key3)
+lora_linear = eqx.tree_at(lambda l: l.weight, linear, lora_weight)
+# Step 2: quaxify and call the original function. The transform will call the
+# original function, whilst looking up any multiple dispatch rules registered.
+# (In this case for doing matmuls against LoraArrays.)
+quax.quaxify(run)(lora_linear, vector)
+# Appendix: Quax includes a helper to automatically apply Step 1 to all
+# `eqx.nn.Linear` layers in a model.
+lora_linear = lora.loraify(linear, rank=2, key=key3)
+```
 
 ## Work in progress!
 
