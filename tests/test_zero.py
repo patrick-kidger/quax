@@ -3,6 +3,7 @@ import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
+import pytest
 
 import quax
 import quax.examples.zero as zero
@@ -117,6 +118,7 @@ def test_slice(getkey):
     assert eqx.tree_equal(out, zero.Zero(true_shape, jnp.float32))
 
 
+@pytest.mark.skip("dynamic quaxify is disabled for now")
 def test_creation():
     for maybe_jit in (jax.jit, lambda x: x):
 
