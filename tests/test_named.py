@@ -1,11 +1,11 @@
-import pathlib
-import sys
+from typing import cast
 
 import equinox as eqx
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
+from jaxtyping import Array
 
 import quax
 import quax.examples.named as named
@@ -70,7 +70,7 @@ def test_existing_function(getkey):
     # Wrap our desired inputs into NamedArrays
     In = named.Axis(3)
     Out = named.Axis(4)
-    named_bias = named.NamedArray(linear.bias, (Out,))
+    named_bias = named.NamedArray(cast(Array, linear.bias), (Out,))
     named_weight = named.NamedArray(linear.weight, (Out, In))
     named_linear = eqx.tree_at(
         lambda l: (l.bias, l.weight), linear, (named_bias, named_weight)

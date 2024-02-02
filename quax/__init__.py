@@ -9,7 +9,8 @@ from ._core import (
 
 
 # After Quax core is imported.
-from . import examples as examples
+from . import examples as examples  # isort: skip
+
 lora = examples.lora  # backward compatibility
 zero = examples.zero  # backward compatibility
 

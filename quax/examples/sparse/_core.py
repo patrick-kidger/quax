@@ -1,3 +1,5 @@
+from typing import get_args
+
 import equinox as eqx
 import jax.core
 import jax.lax as lax
@@ -123,7 +125,7 @@ def _(x: BCOO, y: BCOO):
 def _add_bcoo_dense(x: BCOO, y: ArrayLike) -> ArrayLike:
     x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
     assert isinstance(x, BCOO)
-    assert isinstance(y, ArrayLike)
+    assert isinstance(y, get_args(ArrayLike))
     y = jnp.asarray(y)
     add = lambda z, i, d: z.at[i].add(d)
     return _op_sparse_to_dense(x, y, add)
@@ -146,7 +148,7 @@ def _(x: BCOO, y: BCOO):
 def _mul_bcoo_dense(x: BCOO, y: ArrayLike) -> BCOO:
     x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
     assert isinstance(x, BCOO)
-    assert isinstance(y, ArrayLike)
+    assert isinstance(y, get_args(ArrayLike))
     y = jnp.asarray(y)
     indices = tuple(jnp.moveaxis(x.indices, -1, 0))
     # TODO: unify with _sparse_to_dense, above?

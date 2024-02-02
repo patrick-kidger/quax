@@ -1,9 +1,9 @@
 import abc
 import functools as ft
 import itertools as it
-import operator
 from collections.abc import Callable, Sequence
-from typing import Any, Union
+from typing import Any, cast, Union
+from typing_extensions import TypeGuard
 
 import equinox as eqx
 import jax
@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import plum
 from jax.custom_derivatives import SymbolicZero as SZ
-from jaxtyping import Array, ArrayLike, PyTree
+from jaxtyping import ArrayLike, PyTree
 
 
 #
@@ -130,9 +130,9 @@ def _default_process(
 
 def _wrap_if_array(x: Union[ArrayLike, "Value"]) -> "Value":
     if eqx.is_array_like(x):
-        return _DenseArrayValue(x)
+        return _DenseArrayValue(cast(ArrayLike, x))
     else:
-        return x
+        return cast(Value, x)
 
 
 class _QuaxTrace(core.Trace[_QuaxTracer]):
@@ -238,7 +238,9 @@ def _custom_jvp_jvp_wrap(main, in_treedef, *in_primals_and_tangents):
     in_tangent_values = jtu.tree_unflatten(in_treedef, in_tangents)
     # Calling `_QuaxTracer` directly here, not using `trace.{pure,lift}` as each `x` is
     # a `Value`, not an array (=> pure) or tracer (=> lift).
-    in_tracers = [_QuaxTracer(trace, x) for x in it.chain(in_primal_values, in_tangent_values)]
+    in_tracers = [
+        _QuaxTracer(trace, x) for x in it.chain(in_primal_values, in_tangent_values)
+    ]
     out_tracers = yield in_tracers, {}
     # The symbolic zero branch here will actually create a `quax.zero.Zero`!
     out_tracers = [
@@ -305,7 +307,9 @@ class _Quaxify(eqx.Module):
             # Note that we do *not* wrap arraylikes here. We let that happen in
             # `_QuaxTrace.{pure,lift}` as necessary. This means that we can do e.g.
             # quaxify(jnp.moveaxis)(array, source=0, destination=-1).
-            dynamic, static = eqx.partition((self.fn, args, kwargs), self.filter_spec, is_leaf=_is_value)
+            dynamic, static = eqx.partition(
+                (self.fn, args, kwargs), self.filter_spec, is_leaf=_is_value
+            )
             dynamic = jtu.tree_map(
                 ft.partial(_wrap_tracer, trace),
                 dynamic,
@@ -342,7 +346,8 @@ def quaxify(fn, filter_spec=True):
         `dynamic, static = eqx.partition((fn, args, kwargs), filter_spec)`, and then
         only quaxify those arguments in `dynamic`. This allows for passing through some
         [`quax.Value`][]s into the function unchanged, typically so that they can hit a
-        nested `quax.quaxify`. See the [advanced tutorial](../examples/redispatch.ipynb).
+        nested `quax.quaxify`. See the
+        [advanced tutorial](../examples/redispatch.ipynb).
     """
     return eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False))
 
@@ -423,7 +428,14 @@ class Value(eqx.Module):
             underlies much of the JAX ecosystem.)
         """
 
-        arrays = [x if eqx.is_array_like(x) else x.materialise() for x in values]
+        arrays: list[ArrayLike] = []
+        for x in values:
+            if _is_value(x):
+                arrays.append(x.materialise())
+            elif eqx.is_array_like(x):
+                arrays.append(cast(ArrayLike, x))
+            else:
+                assert False
         return primitive.bind(*arrays, **params)
 
     @abc.abstractmethod
@@ -438,7 +450,7 @@ class Value(eqx.Module):
             `W + AB`. [`quax.examples.lora.LoraArray`] leaves these as three separate
             arrays for efficiency, but calling `lora_array.materialise()` will evaluate
             `W + AB` and return a normal JAX array.
-        
+
         This is so that the usual JAX primitive implementations can be applied as a
         fallback: the array-ish object is materialised, and then the usual JAX
         implementation called on it. (See [`quax.Value.default`][].)
@@ -459,7 +471,7 @@ class Value(eqx.Module):
         """
 
 
-def _is_value(x):
+def _is_value(x) -> TypeGuard[Value]:
     return isinstance(x, Value)
 
 
