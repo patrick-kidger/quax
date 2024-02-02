@@ -14,7 +14,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import plum
 from jax.custom_derivatives import SymbolicZero as SZ
-from jaxtyping import ArrayLike
+from jaxtyping import Array, ArrayLike, PyTree
 
 
 #
@@ -28,12 +28,15 @@ _rules: dict[core.Primitive, plum.Function] = {}
 def register(primitive: core.Primitive):
     """Registers a multiple dispatch implementation for this JAX primitive.
 
-    Used as decorator, and requires type annotations to perform multiple dispatch:
-    ```python
-    @quax.register(jax.lax.add_p)
-    def _(x: SomeValue, y: SomeValue):
-        return ...  # some implementation
-    ```
+    !!! Example
+
+        Used as decorator, and requires type annotations to perform multiple dispatch:
+        ```python
+        @quax.register(jax.lax.add_p)
+        def _(x: SomeValue, y: SomeValue):
+            return ...  # some implementation
+        ```
+
     All positional arguments will be (subclasses of) [`quax.Value`][] -- these are the
     set of types that Quax will attempt to perform multiple dispatch with.
 
@@ -145,7 +148,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
                 "def f(x):\n"
                 "    return x + SomeValue()\n"
                 "\n"
-                "quax.quaxify(f)(AnotherValue())"
+                "quax.quaxify(f)(AnotherValue())\n"
                 "```\n"
                 "This should instead be written as the following:\n"
                 "explicitly passed across the API boundary:\n"
@@ -153,7 +156,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
                 "def f(x, y):\n"
                 "    return x + y\n"
                 "\n"
-                "quax.quaxify(f)(AnotherValue(), SomeValue())"
+                "quax.quaxify(f)(AnotherValue(), SomeValue())\n"
                 "```\n"
                 "To better understand this, remember that the purpose of Quax is "
                 "take a JAX program (given as a function) that acts on arrays, and to "
@@ -289,22 +292,26 @@ def _unwrap_tracer(trace, x):
 
 class _Quaxify(eqx.Module):
     fn: Callable
+    filter_spec: PyTree[Union[bool, Callable[[Any], bool]]]
+    dynamic: bool = eqx.field(static=True)
 
     @property
     def __wrapped__(self):
         return self.fn
 
     def __call__(self, *args, **kwargs):
-        with core.new_main(_QuaxTrace, dynamic=True) as main:
+        with core.new_main(_QuaxTrace, dynamic=self.dynamic) as main:
             trace = _QuaxTrace(main, core.cur_sublevel())
             # Note that we do *not* wrap arraylikes here. We let that happen in
             # `_QuaxTrace.{pure,lift}` as necessary. This means that we can do e.g.
             # quaxify(jnp.moveaxis)(array, source=0, destination=-1).
-            fn, args, kwargs = jtu.tree_map(
+            dynamic, static = eqx.partition((self.fn, args, kwargs), self.filter_spec, is_leaf=_is_value)
+            dynamic = jtu.tree_map(
                 ft.partial(_wrap_tracer, trace),
-                (self.fn, args, kwargs),
+                dynamic,
                 is_leaf=_is_value,
             )
+            fn, args, kwargs = eqx.combine(dynamic, static)
             out = fn(*args, **kwargs)
             out = jtu.tree_map(ft.partial(_unwrap_tracer, trace), out)
             return out
@@ -315,20 +322,29 @@ class _Quaxify(eqx.Module):
         return eqx.Partial(self, instance)
 
 
-def quaxify(fn):
-    """Quaxify's a function, so that it understands custom array-ish objects like
-    `quax.lora.LoraArray`. When this function is called, multiple dispatch will be
-    performed against these types.
+def quaxify(fn, filter_spec=True):
+    """'Quaxifies' a function, so that it understands custom array-ish objects like
+    [`quax.examples.lora.LoraArray`][]. When this function is called, multiple dispatch
+    will be performed against the types it is called with.
 
     **Arguments:**
 
     - `fn`: the function to wrap.
+    - `filter_spec`: which arguments to quaxify. Advanced usage, see tip below.
 
     **Returns:**
 
     A copy of `fn`, that understands all Quax types.
+
+    !!! Tip "Only quaxifying some argments"
+
+        Calling `quax.quaxify(fn, filter_spec)(*args, **kwargs)` will under-the-hood run
+        `dynamic, static = eqx.partition((fn, args, kwargs), filter_spec)`, and then
+        only quaxify those arguments in `dynamic`. This allows for passing through some
+        [`quax.Value`][]s into the function unchanged, typically so that they can hit a
+        nested `quax.quaxify`. See the [advanced tutorial](../examples/redispatch.ipynb).
     """
-    return eqx.module_update_wrapper(_Quaxify(fn))
+    return eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False))
 
 
 #
@@ -339,48 +355,108 @@ def quaxify(fn):
 class Value(eqx.Module):
     """Represents an object which Quax can perform multiple dispatch with.
 
-    In practice you will probably want to inherit from [`quax.ArrayValue`][] instead,
-    which represents specifically an array-like object that can be used for multiple
-    dispatch.
+    In practice you will almost always want to inherit from [`quax.ArrayValue`][]
+    instead, which represents specifically an array-ish object that can be used for
+    multiple dispatch.
     """
-
-    @abc.abstractmethod
-    def materialise(self) -> Any:
-        """All concrete subclasses must implement this method, specifying how to
-        materialise this object into any type that is understood by JAX. This is so that
-        the usual JAX primitive implementations can be applied as a fallback: all
-        objects are materialised, and then the usual implementation called on them.
-
-        It is acceptable for this function to just raise an error -- in this case
-        the error will be surfaced to the end user, indicating that an operation is
-        not supported for this array-ish object.
-        """
 
     @abc.abstractmethod
     def aval(self) -> core.AbstractValue:
         """All concrete subclasses must implement this method, specifying the abstract
         value seen by JAX.
+
+        **Arguments:**
+
+        Nothing.
+
+        **Returns:**
+
+        Any subclass of `jax.core.AbstractValue`. Typically a `jax.core.ShapedArray`.
         """
 
     @staticmethod
     def default(
         primitive, values: Sequence[Union[ArrayLike, "Value"]], params
     ) -> Union[ArrayLike, "Value", Sequence[Union[ArrayLike, "Value"]]]:
-        """This is the default rule for when no rule has been `quax.register`'d for the
-        primitive.
+        """This is the default rule for when no rule has been [`quax.register`][]'d for
+        a primitive.
 
-        This base implementation of `default` will be used if no subclass overrides this
-        method.
+        When performing multiple dispatch `primitive.bind(value1, value2, value3)`,
+        then:
 
-        If there is precisely one override of this method (amongst all arguments to the
-        primitive bind), then that implementation of `default` will be used.
+        1. If there is a dispatch rule matching the types of `value1`, `value2`, and
+            `value3`, then that will be used.
+        2. If precisely one of the types of `value{1,2,3}` overloads this method, then
+            that default rule will be used.
+        3. If precisely zero of the types of `value{1,2,3}` overloads this method, then
+            all values are [`quax.Value.materialise`][]d, and the usual JAX
+            implementation is called.
+        4. If multiple of the types of `value{1,2,3}` overload this method, then a
+            trace-time error will be raised.
 
-        If there are multiple overrides of this method (due to multiple subclasses of
-        Value appearing amongst the arguments of the primitive bind), then tracing will
-        error. In this case a rule must be explicitly specified.
+        **Arguments:**
+
+        - `primitive`: the `jax.core.Primitive` being considered.
+        - `values`: a sequence of what values this primitive is being called with. Each
+            value can either be [`quax.Value`][]s, or a normal JAX arraylike (i.e.
+            `bool`/`int`/`float`/`complex`/NumPy scalar/NumPy array/JAX array).
+        - `params`: the keyword parameters to the primitive.
+
+        **Returns:**
+
+        The result of binding this primitive against these types. If
+        `primitive.multiple_results is False` then this should be a single `quax.Value`
+        or JAX arraylike. If `primitive.multiple_results is True`, then this should be
+        a tuple/list of such values.
+
+        !!! Example
+
+            The default implementation discussed above performs the following:
+            ```python
+            @staticmethod
+            def default(primitive, values, params):
+                arrays = [x if equinox.is_array_like(x) else x.materialise()
+                          for x in values]
+                return primitive.bind(*arrays, **params)
+            ```
+            (Using the [Equinox](https://github.com/patrick-kidger/equinox) library that
+            underlies much of the JAX ecosystem.)
         """
+
         arrays = [x if eqx.is_array_like(x) else x.materialise() for x in values]
         return primitive.bind(*arrays, **params)
+
+    @abc.abstractmethod
+    def materialise(self) -> Any:
+        """All concrete subclasses must implement this method, specifying how to
+        materialise this object into a JAX type (i.e. almost always a JAX array, unless
+        you're doing something obscure using tokens or refs).
+
+        !!! Example
+
+            For example, a LoRA array consists of three arrays `(W, A, B)`, combined as
+            `W + AB`. [`quax.examples.lora.LoraArray`] leaves these as three separate
+            arrays for efficiency, but calling `lora_array.materialise()` will evaluate
+            `W + AB` and return a normal JAX array.
+        
+        This is so that the usual JAX primitive implementations can be applied as a
+        fallback: the array-ish object is materialised, and then the usual JAX
+        implementation called on it. (See [`quax.Value.default`][].)
+
+        !!! Info
+
+            It is acceptable for this function to just raise an error -- in this case
+            the error will be surfaced to the end user, indicating that an operation is
+            not supported for this array-ish object.
+
+        **Arguments:**
+
+        Nothing.
+
+        **Returns:**
+
+        A JAX type; typically a JAX array.
+        """
 
 
 def _is_value(x):
@@ -388,27 +464,24 @@ def _is_value(x):
 
 
 class ArrayValue(Value):
-    """A [`quax.Value`][] for specifically array-like types. If you are creating a
-    custom array-ish object then you should typically inherit from this.
+    """A subclass [`quax.Value`][] for specifically array-like types. If you are
+    creating a custom array-ish object then you should typically inherit from this.
+
+    Provides the properties `.shape`, `.dtype`, `.ndim`, `.size`, each as a shortcut for
+    `self.aval().shape` etc.
     """
 
     @abc.abstractmethod
     def materialise(self) -> ArrayLike:
-        """All concrete subclasses must implement this method, specifying how to
-        materialise this object into a standard JAX array. This is so that the usual
-        JAX primitive implementations can be applied as a fallback: all array-ish
-        objects are materialised, and then the usual implementation called on them.
-
-        It is acceptable for this function to just raise an error -- in this case
-        the error will be surfaced to the end user, indicating that an operation is
-        not supported for this array-ish object.
-        """
+        pass
 
     @abc.abstractmethod
     def aval(self) -> core.ShapedArray:
-        """All concrete subclasses must implement this method, specifying the abstract
-        value seen by JAX. The return must be a `jax.core.ShapedArray`.
-        """
+        pass
+
+    @property
+    def shape(self):
+        return self.aval().shape
 
     @property
     def dtype(self):
@@ -421,10 +494,6 @@ class ArrayValue(Value):
     @property
     def size(self):
         return self.aval().size
-
-    @property
-    def shape(self):
-        return self.aval().shape
 
 
 class _DenseArrayValue(ArrayValue):
@@ -457,122 +526,3 @@ def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
 
 
 # TODO: also register higher-order primitives like `lax.cond_p` etc.
-
-
-#
-# Posterity: we use a final-style (on-the-fly) interpreter above, but this is what an
-# initial-style (staged) interpreter looks like.
-# The final-style is preferred where possible, as it (a) supports Python control flow,
-# and (b) I speculate should sometimes be faster. (E.g. when nesting multiple quaxifys,
-# and not needing to parse the jaxpr whilst building the jaxpr in an upper level.)
-#
-#
-# def _to_value(x):
-#     if eqx.is_array(x):
-#         return DenseArrayValue(x)
-#     else:
-#         return x
-
-
-# def _to_struct(x):
-#     if _is_value(x):
-#         if not isinstance(x.aval(), core.ShapedArray):
-#             raise NotImplementedError
-#         return jax.ShapeDtypeStruct(x.shape, x.dtype)
-#     else:
-#         return x
-
-
-# def _is_struct(x):
-#     return isinstance(x, jax.ShapeDtypeStruct)
-
-
-# def _default_process2(primitive, values, params):
-#     values = tuple(x.materialise() for x in values)
-#     subfuns, bind_params = primitive.get_bind_params(params)
-#     ans = primitive.bind(*subfuns, *values, **bind_params)
-#     if primitive.multiple_results:
-#         return [DenseArrayValue(x) for x in ans]
-#     else:
-#         return DenseArrayValue(ans)
-
-
-# def _safe_map(fn, *args):
-#     args = [list(args) for args in args]
-#     length = len(args[0])
-#     assert all(len(arg) == length for arg in args[1:])
-#     return list(map(fn, *args))
-
-
-# class _Quaxify2(eqx.Module):
-#     fn: Callable
-#     unwrap_builtin_value: bool
-
-#     @property
-#     def __wrapped__(self):
-#         return self.fn
-
-#     def __call__(self, *args, **kwargs):
-#         flat, treedef = jtu.tree_flatten((args, kwargs), is_leaf=_is_value)
-#         flat = [_to_value(x) for x in flat]
-#         flat_struct = [_to_struct(x) for x in flat]
-#         dynamic_flat_struct, static_flat = eqx.partition(flat_struct, _is_struct)
-
-#         def _fn(_dynamic_flat):
-#             _flat = eqx.combine(_dynamic_flat, static_flat)
-#             _args, _kwargs = jtu.tree_unflatten(treedef, _flat)
-#             _out = self.fn(*_args, **_kwargs)
-#             _out_flat, _out_treedef = jtu.tree_flatten(_out)
-#             _dynamic_out_flat, _static_out_flat = eqx.partition(
-#                 _out_flat, eqx.is_array
-#             )
-#             return _dynamic_out_flat, eqxi.Static((_out_treedef, _static_out_flat))
-
-#         jaxpr, (_, static) = jax.make_jaxpr(_fn, return_shape=True)(
-#             dynamic_flat_struct
-#         )
-#         consts = jaxpr.consts
-#         jaxpr = jaxpr.jaxpr
-#         out_treedef, static_out_flat = static.value
-
-#         def read(v: core.Atom):
-#             return v.val if isinstance(v, core.Literal) else env[v]
-
-#         def write(v: core.Var, val: Value):
-#             assert isinstance(val, Value)
-#             assert core.raise_to_shaped(v.aval) == core.raise_to_shaped(val.aval())
-#             env[v] = val
-
-#         env: dict[core.Var, Value] = {}
-#         consts = [DenseArrayValue(x) for x in consts]
-#         dynamic_flat = [x for x in flat if _is_value(x)]
-#         _safe_map(write, jaxpr.constvars, consts)
-#         _safe_map(write, jaxpr.invars, dynamic_flat)
-#         for eqn in jaxpr.eqns:
-#             values = _safe_map(read, eqn.invars)
-#             try:
-#                 rule = _rules[eqn.primitive]
-#             except KeyError:
-#                 ans = _default_process2(eqn.primitive, values, eqn.params)
-#             else:
-#                 try:
-#                     ans = rule(*values, **eqn.params)
-#                 except plum.NotFoundLookupError:
-#                     ans = _default_process2(eqn.primitive, values, eqn.params)
-#             if eqn.primitive.multiple_results:
-#                 _safe_map(write, eqn.outvars, ans)
-#             else:
-#                 [outvar] = eqn.outvars
-#                 write(outvar, ans)
-#         dynamic_out_flat = _safe_map(read, jaxpr.outvars)
-#         if self.unwrap_builtin_value:
-#             dynamic_out_flat = [x.array if isinstance(x, DenseArrayValue) else x
-#                                 for x in dynamic_out_flat]
-#         out_flat = eqx.combine(static_out_flat, dynamic_out_flat)
-#         out = jtu.tree_unflatten(out_treedef, out_flat)
-#         return out
-
-#     def __get__(self, instance, owner):
-#         if instance is None:
-#             return self
-#         return eqx.Partial(self, instance)
