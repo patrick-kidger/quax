@@ -7,16 +7,17 @@ JAX has a built in `jax.random.key` for creating PRNG keys. Here we demonstrate 
 ```python
 import jax.lax as lax
 import jax.numpy as jnp
-import prng
 import quax
+import quax.examples.prng as prng
 
 # `key` is a PyTree wrapping a u32[2] array.
 key = prng.ThreeFry(0)
 prng.normal(key)
 
 # Some primitives (lax.add_p) are disallowed.
-key + 1  # TypeError!
-quax.quaxify(lax.add)(key, 1)  # Still a TypeError!
+def f(x, y):
+    return x + y
+quax.quaxify(f)(key, 1)  # TypeError!
 
 # Some primitives (lax.select_n) are allowed.
 # We're calling `jnp.where(..., pytree1, pytree2)` -- on pytrees, not arrays!

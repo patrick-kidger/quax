@@ -7,8 +7,8 @@ These are arrays with named dimensions. We can then use these to specify which d
 ```python
 import equinox as eqx
 import jax.random as jr
-import named
 import quax
+import quax.examples.named as named
 
 # Existing program
 linear = eqx.nn.Linear(3, 4, key=jr.PRNGKey(0))
@@ -24,7 +24,7 @@ vector = named.NamedArray(jr.normal(jr.PRNGKey(1), (3,)), (In,))
 # Wrap function (here using matrix-vector multiplication) with quaxify. Output will be
 # a NamedArray!
 out = quax.quaxify(named_linear)(vector)
-print(out)  # NamedArray(array=f32[4], axes=(Axis(name='Out', size=4),))
+print(out)  # NamedArray(array=f32[4], axes=(Axis(size=4),))
 ```
 
 ## API
