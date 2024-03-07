@@ -61,3 +61,9 @@ def test_brownian():
         return cumvals
 
     run(prng.ThreeFry(0))
+
+
+def test_threefry_from_threefry():
+    key = prng.ThreeFry(0)
+    new_key = prng.ThreeFry(key)
+    assert key == new_key
