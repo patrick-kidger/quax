@@ -537,7 +537,13 @@ def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
             return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
 @register(jax.lax.while_p)
-def _(*args, cond_nconsts: int, cond_jaxpr, body_nconsts: int, body_jaxpr):
+def _(
+    *args: ArrayValue | ArrayLike,
+    cond_nconsts: int, 
+    cond_jaxpr, 
+    body_nconsts: int, 
+    body_jaxpr,
+):
     cond_consts = args[:cond_nconsts]
     body_consts = args[cond_nconsts:cond_nconsts+body_nconsts]
     init_vals = args[cond_nconsts+body_nconsts:]
