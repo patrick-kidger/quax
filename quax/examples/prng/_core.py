@@ -1,17 +1,19 @@
 import abc
 import functools as ft
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any, overload, TypeVar
 from typing_extensions import Self, TYPE_CHECKING, TypeAlias
 
 import equinox as eqx
 import jax
-import jax._src.prng
+import jax._src.prng as jprng
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.tree_util as jtu
 import numpy as np
+from jax._src.random import KeyArray
 from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
 
 import quax
@@ -53,17 +55,17 @@ class ThreeFry(PRNG):
     value: UInt32[Array, "*batch 2"]
 
     def __init__(self, seed: Integer[ArrayLike, ""]):
-        self.value = jax._src.prng.threefry_seed(jnp.asarray(seed))
+        self.value = jprng.threefry_seed(jnp.asarray(seed))
 
     def aval(self):
         *shape, _ = self.value.shape
         return jax.core.ShapedArray(shape, jnp.uint32)
 
     def random_bits(self, bit_width: int, shape: tuple[int, ...]) -> UInt[Array, "..."]:
-        return jax._src.prng.threefry_random_bits(self.value, bit_width, shape)
+        return jprng.threefry_random_bits(self.value, bit_width, shape)
 
     def split(self, num: int) -> Sequence["ThreeFry"]:
-        new_values = jax._src.prng.threefry_split(self.value, (num,))
+        new_values = jprng.threefry_split(self.value, (num,))
         return [eqx.tree_at(lambda s: s.value, self, x) for x in new_values]
 
 
@@ -153,14 +155,27 @@ def _normal_real(key, shape, dtype):
 PRNG_T = TypeVar("PRNG_T", bound=PRNG)
 
 
-def split(key: PRNG_T, num: int = 2) -> Sequence[PRNG_T]:
+@overload
+def split(key: PRNG_T, num: int = ...) -> Sequence[PRNG_T]:
+    ...
+
+
+@overload
+def split(
+    key: jprng.PRNGKeyArray | KeyArray, num: int = ...
+) -> jprng.PRNGKeyArray | KeyArray:
+    ...
+
+
+def split(
+    key: PRNG_T | jprng.PRNGKeyArray | KeyArray, num: int = 2
+) -> Sequence[PRNG_T] | jprng.PRNGKeyArray | KeyArray:
     """Splits a key in multiple subkeys, each behaving statistically independently.
 
-    Arguments as `jax.random.split`, except that the first argument must be one of our
+    Arguments as `jax.random.split`, except that the first argument can be one of our
     PRNGs, e.g. `prng.ThreeFry(...)`.
     """
-
-    return key.split(num)
+    return key.split(num) if isinstance(key, PRNG) else jr.split(key, num)
 
 
 # Allows for `jnp.where(pred, key1, key2)`.

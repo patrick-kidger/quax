@@ -1,7 +1,9 @@
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
+import jax.random as jr
 import pytest
+from jax._src.prng import PRNGKeyArray
 
 import quax
 import quax.examples.prng as prng
@@ -61,3 +63,19 @@ def test_brownian():
         return cumvals
 
     run(prng.ThreeFry(0))
+
+
+def test_split_quax():
+    # Test with quax.examples.prng
+    key = prng.ThreeFry(0)
+    keys = prng.split(key, 3)
+    assert len(keys) == 3
+    assert all(isinstance(key, prng.ThreeFry) for key in keys)
+
+
+def test_split_jax():
+    # Test with jax.random
+    key = jr.key(0)
+    keys = prng.split(key, 3)
+    assert len(keys) == 3
+    assert isinstance(key, PRNGKeyArray)
