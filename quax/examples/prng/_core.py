@@ -1,7 +1,7 @@
 import abc
 import functools as ft
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Union
 from typing_extensions import Self, TYPE_CHECKING, TypeAlias
 
 import equinox as eqx
@@ -52,8 +52,12 @@ class ThreeFry(PRNG):
 
     value: UInt32[Array, "*batch 2"]
 
-    def __init__(self, seed: Integer[ArrayLike, ""]):
-        self.value = jax._src.prng.threefry_seed(jnp.asarray(seed))
+    def __init__(self, seed: Union[Integer[ArrayLike, ""], "ThreeFry"]):
+        self.value = (
+            jax._src.prng.threefry_seed(jnp.asarray(seed))
+            if not isinstance(seed, ThreeFry)
+            else seed.value
+        )
 
     def aval(self):
         *shape, _ = self.value.shape
