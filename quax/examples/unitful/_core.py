@@ -1,9 +1,9 @@
-from typing import Any, Sequence, Union
+from typing import Union
 
 import equinox as eqx  # https://github.com/patrick-kidger/equinox
 import jax
-import jax.numpy as jnp
 import jax.core as core
+import jax.numpy as jnp
 from jaxtyping import ArrayLike  # https://github.com/patrick-kidger/quax
 
 import quax
@@ -27,7 +27,8 @@ def _dim_to_unit(x: Union[Dimension, dict[Dimension, int]]) -> dict[Dimension, i
         return {x: 1}
     else:
         return x
-    
+
+
 class Unitful(quax.ArrayValue):
     array: ArrayLike
     units: dict[Dimension, int] = eqx.field(static=True, converter=_dim_to_unit)
@@ -39,7 +40,8 @@ class Unitful(quax.ArrayValue):
 
     def materialise(self):
         raise ValueError("Refusing to materialise Unitful array.")
-    
+
+
 @quax.register(jax.lax.add_p)
 def _(x: Unitful, y: Unitful):  # function name doesn't matter
     if x.units == y.units:
@@ -74,20 +76,18 @@ def _(x: Unitful, *, y: int):
     units = {k: v * y for k, v in x.units.items()}
     return Unitful(x.array, units)
 
+
 @quax.register(jax.lax.lt_p)
 def _(x: Unitful, y: Unitful, **kwargs):
     if x.units == y.units:
         return jax.lax.lt(x.array, y.array, **kwargs)
     else:
-        raise ValueError(f"Cannot compare two arrays with units {x.units} and {y.units}.")
+        raise ValueError(
+            f"Cannot compare two arrays with units {x.units} and {y.units}."
+        )
+
 
 @quax.register(jax.lax.broadcast_in_dim_p)
-def _(
-    operand: Unitful, 
-    **kwargs
-):
-    new_arr = jax.lax.broadcast_in_dim(
-        operand.array,
-        **kwargs
-    )
+def _(operand: Unitful, **kwargs):
+    new_arr = jax.lax.broadcast_in_dim(operand.array, **kwargs)
     return Unitful(new_arr, operand.units)

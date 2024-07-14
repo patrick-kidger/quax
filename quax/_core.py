@@ -536,24 +536,25 @@ def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
         with jax.ensure_compile_time_eval():  # replace the dynamic QuaxTrace
             return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
+
 @register(jax.lax.while_p)
 def _(
     *args: ArrayValue | ArrayLike,
-    cond_nconsts: int, 
-    cond_jaxpr, 
-    body_nconsts: int, 
+    cond_nconsts: int,
+    cond_jaxpr,
+    body_nconsts: int,
     body_jaxpr,
 ):
     cond_consts = args[:cond_nconsts]
-    body_consts = args[cond_nconsts:cond_nconsts+body_nconsts]
-    init_vals = args[cond_nconsts+body_nconsts:]
-    
+    body_consts = args[cond_nconsts : cond_nconsts + body_nconsts]
+    init_vals = args[cond_nconsts + body_nconsts :]
+
     # compute jaxpr of quaxified body and condition function
     quax_cond_fn = quaxify(core.jaxpr_as_fun(cond_jaxpr))
     quax_cond_jaxpr = jax.make_jaxpr(quax_cond_fn)(*cond_consts, *init_vals)
     quax_body_fn = quaxify(core.jaxpr_as_fun(body_jaxpr))
     quax_body_jaxpr = jax.make_jaxpr(quax_body_fn)(*body_consts, *init_vals)
-    
+
     leaves, _ = jtu.tree_flatten(args)
     _, val_treedef = jtu.tree_flatten(init_vals)
     out_val = jax.lax.while_p.bind(
