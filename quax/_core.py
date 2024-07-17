@@ -2,7 +2,7 @@ import abc
 import functools as ft
 import itertools as it
 from collections.abc import Callable, Sequence
-from typing import Any, cast, Union
+from typing import Any, cast, Generic, TypeVar, Union
 from typing_extensions import TypeGuard
 
 import equinox as eqx
@@ -17,6 +17,8 @@ from jax.custom_derivatives import SymbolicZero as SZ
 from jaxtyping import ArrayLike, PyTree
 
 
+CT = TypeVar("CT", bound=Callable)
+
 #
 # Rules
 #
@@ -25,7 +27,7 @@ from jaxtyping import ArrayLike, PyTree
 _rules: dict[core.Primitive, plum.Function] = {}
 
 
-def register(primitive: core.Primitive):
+def register(primitive: core.Primitive) -> Callable[[CT], CT]:
     """Registers a multiple dispatch implementation for this JAX primitive.
 
     !!! Example
@@ -53,7 +55,7 @@ def register(primitive: core.Primitive):
     A decorator for registering a multiple dispatch rule with the specified primitive.
     """
 
-    def _register(rule: Callable):
+    def _register(rule: CT) -> CT:
         try:
             existing_rule = _rules[primitive]  # pyright: ignore
         except KeyError:
@@ -80,7 +82,7 @@ def register(primitive: core.Primitive):
 class _QuaxTracer(core.Tracer):
     __slots__ = ("value",)
 
-    def __init__(self, trace: "_QuaxTrace", value: "Value"):
+    def __init__(self, trace: "_QuaxTrace", value: "Value") -> None:
         assert _is_value(value)
         self._trace = trace
         self.value = value
@@ -292,13 +294,13 @@ def _unwrap_tracer(trace, x):
         return x
 
 
-class _Quaxify(eqx.Module):
-    fn: Callable
+class _Quaxify(eqx.Module, Generic[CT]):
+    fn: CT
     filter_spec: PyTree[Union[bool, Callable[[Any], bool]]]
     dynamic: bool = eqx.field(static=True)
 
     @property
-    def __wrapped__(self):
+    def __wrapped__(self) -> CT:
         return self.fn
 
     def __call__(self, *args, **kwargs):
@@ -320,13 +322,16 @@ class _Quaxify(eqx.Module):
             out = jtu.tree_map(ft.partial(_unwrap_tracer, trace), out)
             return out
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Union[object, None], owner: Any):
         if instance is None:
             return self
         return eqx.Partial(self, instance)
 
 
-def quaxify(fn, filter_spec=True):
+def quaxify(
+    fn: CT,
+    filter_spec: PyTree[Union[bool, Callable[[Any], bool]]] = True,
+) -> _Quaxify[CT]:
     """'Quaxifies' a function, so that it understands custom array-ish objects like
     [`quax.examples.lora.LoraArray`][]. When this function is called, multiple dispatch
     will be performed against the types it is called with.
@@ -349,7 +354,10 @@ def quaxify(fn, filter_spec=True):
         nested `quax.quaxify`. See the
         [advanced tutorial](../examples/redispatch.ipynb).
     """
-    return eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False))
+    return cast(
+        _Quaxify[CT],
+        eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False)),
+    )
 
 
 #
@@ -381,7 +389,7 @@ class Value(eqx.Module):
 
     @staticmethod
     def default(
-        primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+        primitive: core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
     ) -> Union[ArrayLike, "Value", Sequence[Union[ArrayLike, "Value"]]]:
         """This is the default rule for when no rule has been [`quax.register`][]'d for
         a primitive.
