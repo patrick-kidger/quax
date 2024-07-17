@@ -89,7 +89,7 @@ def test_double_override():
                 if primitive.multiple_results:
                     return [Foo(x) for x in out]
                 else:
-                    return Foo(out)
+                    return Foo(cast(Array, out))
 
         return Foo
 
