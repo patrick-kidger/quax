@@ -545,4 +545,39 @@ def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
             return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
 
+@register(jax.lax.while_p)
+def _(
+    *args: Union[ArrayValue, ArrayLike],
+    cond_nconsts: int,
+    cond_jaxpr,
+    body_nconsts: int,
+    body_jaxpr,
+):
+    cond_consts = args[:cond_nconsts]
+    body_consts = args[cond_nconsts : cond_nconsts + body_nconsts]
+    init_vals = args[cond_nconsts + body_nconsts :]
+
+    # compute jaxpr of quaxified body and condition function
+    quax_cond_fn = quaxify(core.jaxpr_as_fun(cond_jaxpr))
+    quax_cond_jaxpr = jax.make_jaxpr(quax_cond_fn)(*cond_consts, *init_vals)
+    quax_body_fn = quaxify(core.jaxpr_as_fun(body_jaxpr))
+    quax_body_jaxpr = jax.make_jaxpr(quax_body_fn)(*body_consts, *init_vals)
+
+    cond_leaves, _ = jtu.tree_flatten(cond_consts)
+    body_leaves, _ = jtu.tree_flatten(body_consts)
+    init_val_leaves, val_treedef = jtu.tree_flatten(init_vals)
+
+    out_val = jax.lax.while_p.bind(
+        *cond_leaves,
+        *body_leaves,
+        *init_val_leaves,
+        cond_nconsts=cond_nconsts,
+        cond_jaxpr=quax_cond_jaxpr,
+        body_nconsts=body_nconsts,
+        body_jaxpr=quax_body_jaxpr,
+    )
+    result = jtu.tree_unflatten(val_treedef, out_val)
+    return result
+
+
 # TODO: also register higher-order primitives like `lax.cond_p` etc.
