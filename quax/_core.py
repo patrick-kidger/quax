@@ -27,7 +27,7 @@ CT = TypeVar("CT", bound=Callable)
 _rules: dict[core.Primitive, plum.Function] = {}
 
 
-def register(primitive: core.Primitive) -> Callable[[CT], CT]:
+def register(primitive: core.Primitive, *, precedence: int = 0) -> Callable[[CT], CT]:
     """Registers a multiple dispatch implementation for this JAX primitive.
 
     !!! Example
@@ -50,6 +50,9 @@ def register(primitive: core.Primitive) -> Callable[[CT], CT]:
     - `primitive`: The `jax.core.Primitive` to provide a multiple dispatch
         implementation for.
 
+    - `precedence`: The precedence of this rule.
+        See `plum.Dispatcher.dispatch` for details.
+
     **Returns:**
 
     A decorator for registering a multiple dispatch rule with the specified primitive.
@@ -68,7 +71,7 @@ def register(primitive: core.Primitive) -> Callable[[CT], CT]:
             existing_rule = plum.Dispatcher().abstract(existing_rule)
 
             _rules[primitive] = existing_rule
-        existing_rule.dispatch(rule)
+        existing_rule.dispatch(rule, precedence=precedence)
         return rule
 
     return _register
