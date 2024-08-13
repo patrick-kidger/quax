@@ -84,9 +84,15 @@ def _(value: BCOO, *, broadcast_dimensions, shape) -> BCOO:
         raise NotImplementedError(
             "BCOO matrices only support broadcasting additional batch dimensions."
         )
-    extra_batch_dims = shape[:n_extra_batch_dims]
-    data = jnp.broadcast_to(value.data, extra_batch_dims + value.data.shape)
-    indices = jnp.broadcast_to(value.indices, extra_batch_dims + value.indices.shape)
+    bdims = shape[:n_extra_batch_dims]
+    dims = jnp.broadcast_shapes(
+        (bdims + value.data.shape)[:-1],
+        (bdims + value.indices.shape)[:-2],
+        shape[: n_extra_batch_dims + len(value.data.shape) - 1],
+    )
+    data = jnp.broadcast_to(value.data, dims + value.data.shape[-1:])
+    indices = jnp.broadcast_to(value.indices, dims + value.indices.shape[-2:])
+
     return BCOO(data, indices, shape, allow_materialise=value.allow_materialise)
 
 
