@@ -97,6 +97,7 @@ It should be fairly straightforward to add support for these; open an issue or p
 
 **Built on Quax**
 [Quaxed](https://github.com/GalacticDynamics/quaxed): a namespace of already-wrapped `quaxify(jnp.foo)` operations.
+[unxt](https://github.com/GalacticDynamics/unxt): Unitful Quantities.
 
 **Awesome JAX**  
 [Awesome JAX](https://github.com/n2cholas/awesome-jax): a longer list of other JAX projects.  
