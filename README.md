@@ -95,8 +95,8 @@ It should be fairly straightforward to add support for these; open an issue or p
 [sympy2jax](https://github.com/patrick-kidger/sympy2jax): SymPy<->JAX conversion; train symbolic expressions via gradient descent.  
 [PySR](https://github.com/milesCranmer/PySR): symbolic regression. (Non-JAX honourable mention!)  
 
-**Built on Quax**
-[Quaxed](https://github.com/GalacticDynamics/quaxed): a namespace of already-wrapped `quaxify(jnp.foo)` operations.
+**Built on Quax**  
+[Quaxed](https://github.com/GalacticDynamics/quaxed): a namespace of already-wrapped `quaxify(jnp.foo)` operations.  
 [unxt](https://github.com/GalacticDynamics/unxt): Unitful Quantities.
 
 **Awesome JAX**  
