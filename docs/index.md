@@ -58,8 +58,8 @@ This example demonstrates everything you need to use the built-in `quax.examples
 [sympy2jax](https://github.com/patrick-kidger/sympy2jax): SymPy<->JAX conversion; train symbolic expressions via gradient descent.  
 [PySR](https://github.com/milesCranmer/PySR): symbolic regression. (Non-JAX honourable mention!)  
 
-**Built on Quax**
-[Quaxed](https://github.com/GalacticDynamics/quaxed): a namespace of already-wrapped `quaxify(jnp.foo)` operations.
+**Built on Quax**  
+[Quaxed](https://github.com/GalacticDynamics/quaxed): a namespace of already-wrapped `quaxify(jnp.foo)` operations.  
 [unxt](https://github.com/GalacticDynamics/unxt): Unitful Quantities.
 
 **Awesome JAX**  
