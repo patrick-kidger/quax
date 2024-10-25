@@ -614,19 +614,12 @@ def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
 
 @register(jax.lax.select_n_p)
 def _(which: ArrayLike, *cases: Union[ArrayValue, ArrayLike]):
-    leaves, _ = jtu.tree_flatten(cases)
-    _, treedef = jtu.tree_flatten(cases[0])
-    out_val = jax.lax.select_n_p.bind(which, *leaves)
-    result = jtu.tree_unflatten(treedef, [out_val])
-    return result
+    return jtu.tree_map(ft.partial(jax.lax.select_n_p.bind, which), *cases)
 
 
 @register(jax.lax.stop_gradient_p)
 def _(x: ArrayValue):
-    leaves, treedef = jtu.tree_flatten(x)
-    out_val = jax.lax.stop_gradient_p.bind(*leaves)
-    result = jtu.tree_unflatten(treedef, [out_val])
-    return result
+    return jtu.tree_map(jax.lax.stop_gradient_p.bind, x)
 
 
 # TODO: also register higher-order primitives like `lax.scan_p` etc.
