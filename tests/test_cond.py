@@ -1,3 +1,5 @@
+from typing import Union
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -6,7 +8,7 @@ import quax
 from quax.examples.unitful import kilograms, meters, Unitful
 
 
-def _outer_fn(a: jax.Array, b: jax.Array, c: jax.Array, pred: bool | jax.Array):
+def _outer_fn(a: jax.Array, b: jax.Array, c: jax.Array, pred: Union[bool, jax.Array]):
     def _true_fn(a: jax.Array):
         return a + b
 
