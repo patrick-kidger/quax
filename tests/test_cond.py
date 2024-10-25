@@ -78,7 +78,7 @@ def test_cond_grad_closure():
     def outer_fn(
         outer_var: jax.Array,
         dummy: jax.Array,
-        pred: bool | jax.Array,
+        pred: Union[bool, jax.Array],
     ):
         def _true_fn_grad(a: jax.Array):
             return a + outer_var
