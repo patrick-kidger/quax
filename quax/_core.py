@@ -194,6 +194,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             try:
                 method, _ = rule.resolve_method(values)
             except plum.NotFoundLookupError:
+                print(primitive, values, params)
                 out = _default_process(primitive, values, params)
             else:
                 out = method(*values, **params)
@@ -608,6 +609,23 @@ def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
         index, *args_leaves, branches=(quax_false_jaxpr, quax_true_jaxpr)
     )
     result = jtu.tree_unflatten(out_treedef, out_val)
+    return result
+
+
+@register(jax.lax.select_n_p)
+def _(which: ArrayLike, *cases: Union[ArrayValue, ArrayLike]):
+    leaves, _ = jtu.tree_flatten(cases)
+    _, treedef = jtu.tree_flatten(cases[0])
+    out_val = jax.lax.select_n_p.bind(which, *leaves)
+    result = jtu.tree_unflatten(treedef, [out_val])
+    return result
+
+
+@register(jax.lax.stop_gradient_p)
+def _(x: ArrayValue):
+    leaves, treedef = jtu.tree_flatten(x)
+    out_val = jax.lax.stop_gradient_p.bind(*leaves)
+    result = jtu.tree_unflatten(treedef, [out_val])
     return result
 
 
