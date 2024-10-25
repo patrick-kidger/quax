@@ -194,7 +194,6 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             try:
                 method, _ = rule.resolve_method(values)
             except plum.NotFoundLookupError:
-                print(primitive, values, params)
                 out = _default_process(primitive, values, params)
             else:
                 out = method(*values, **params)
