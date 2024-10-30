@@ -2,7 +2,7 @@ import abc
 import functools as ft
 import itertools as it
 from collections.abc import Callable, Sequence
-from typing import Any, cast, Generic, TypeVar, Union
+from typing import Any, cast, Generic, List, Optional, TypeVar, Union
 from typing_extensions import TypeGuard
 
 import equinox as eqx
@@ -440,7 +440,6 @@ class Value(eqx.Module):
             (Using the [Equinox](https://github.com/patrick-kidger/equinox) library that
             underlies much of the JAX ecosystem.)
         """
-
         arrays: list[ArrayLike] = []
         for x in values:
             if _is_value(x):
@@ -587,38 +586,36 @@ def _(
 
 @register(jax.lax.cond_p)
 def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
-    false_jaxpr, true_jaxpr = branches
+    def quaxed_jaxpr_out_tree(jaxpr):
+        quax_fn = quaxify(core.jaxpr_as_fun(jaxpr))
+        wrapped_fn, out_tree = api_util.flatten_fun_nokwargs(  # pyright: ignore
+            lu.wrap_init(quax_fn), in_tree
+        )
+        in_avals = tuple([core.raise_to_shaped(core.get_aval(x)) for x in args_leaves])
+        quax_jaxpr = pe.trace_to_jaxpr_dynamic(wrapped_fn, in_avals)[0]
+        return core.ClosedJaxpr(quax_jaxpr, ()), out_tree()
 
-    # compute jaxpr of quaxified false and true functions
-    quax_false_fn = quaxify(core.jaxpr_as_fun(false_jaxpr))
-    quax_false_jaxpr = jax.make_jaxpr(quax_false_fn)(*args)
-    quax_true_fn = quaxify(core.jaxpr_as_fun(true_jaxpr))
-    quax_true_jaxpr = jax.make_jaxpr(quax_true_fn)(*args)
+    args_leaves, in_tree = jtu.tree_flatten(args)
 
-    # infer the output treedef
-    args_leaves, in_treedef = jtu.tree_flatten(args)
-    wrapped_fn, out_treedef = api_util.flatten_fun_nokwargs(  # pyright: ignore
-        lu.wrap_init(quax_false_fn), in_treedef
-    )
-    in_avals = tuple([core.raise_to_shaped(core.get_aval(x)) for x in args_leaves])
-    _ = pe.trace_to_jaxpr_dynamic(wrapped_fn, in_avals)
-    out_treedef = out_treedef()
+    quax_branches_jaxpr: List[Optional[core.ClosedJaxpr]] = [None] * len(branches)
+    quax_jaxpr0, out_tree0 = quaxed_jaxpr_out_tree(branches[0])
+    quax_branches_jaxpr[0] = quax_jaxpr0
+    for i in range(1, len(branches)):
+        quax_jaxpr, out_tree = quaxed_jaxpr_out_tree(branches[i])
+        jax._src.lax.control_flow.common._check_tree_and_avals(  # pyright: ignore
+            f"branch 0 and {i + 1} outputs",
+            out_tree0,
+            quax_jaxpr0.out_avals,
+            out_tree,
+            quax_jaxpr.out_avals,
+        )
+        quax_branches_jaxpr[i] = quax_jaxpr
 
     out_val = jax.lax.cond_p.bind(
-        index, *args_leaves, branches=(quax_false_jaxpr, quax_true_jaxpr)
+        index, *args_leaves, branches=tuple(quax_branches_jaxpr)
     )
-    result = jtu.tree_unflatten(out_treedef, out_val)
+    result = jtu.tree_unflatten(out_tree0, out_val)
     return result
-
-
-@register(jax.lax.select_n_p)
-def _(which: ArrayLike, *cases: Union[ArrayValue, ArrayLike]):
-    return jtu.tree_map(ft.partial(jax.lax.select_n_p.bind, which), *cases)
-
-
-@register(jax.lax.stop_gradient_p)
-def _(x: ArrayValue):
-    return jtu.tree_map(jax.lax.stop_gradient_p.bind, x)
 
 
 # TODO: also register higher-order primitives like `lax.scan_p` etc.

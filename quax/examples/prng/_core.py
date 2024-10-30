@@ -1,4 +1,5 @@
 import abc
+import functools as ft
 from collections.abc import Sequence
 from typing import Any, TypeVar
 from typing_extensions import Self, TYPE_CHECKING, TypeAlias
@@ -9,6 +10,7 @@ import jax._src.prng
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
 
@@ -159,3 +161,9 @@ def split(key: PRNG_T, num: int = 2) -> Sequence[PRNG_T]:
     """
 
     return key.split(num)
+
+
+# Allows for `jnp.where(pred, key1, key2)`.
+@quax.register(lax.select_n_p)
+def _(pred, *cases: PRNG) -> PRNG:
+    return jtu.tree_map(ft.partial(lax.select_n, pred), *cases)

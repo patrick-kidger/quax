@@ -42,6 +42,58 @@ def test_cond_different_units():
         quax.quaxify(_outer_fn)(a, b, c, False)
 
 
+def test_cond_different_out_trees():
+    def _outer_fn(
+        a: jax.Array, b: jax.Array, c: jax.Array, pred: Union[bool, jax.Array]
+    ):
+        def _true_fn(a: jax.Array):
+            return a + b
+
+        def _false_fn(a: jax.Array):
+            return a * c
+
+        res = jax.lax.cond(pred, _true_fn, _false_fn, a)
+        return res
+
+    a = Unitful(jnp.asarray([1.0]), {meters: 1})
+    b = Unitful(jnp.asarray([2.0]), {meters: 1})
+    c = Unitful(jnp.asarray([10.0]), {meters: 1})
+
+    with pytest.raises(Exception):
+        quax.quaxify(_outer_fn)(a, b, c, False)
+
+
+def test_cond_switch():
+    def _outer_fn(index: int, a: jax.Array, b: jax.Array, c: jax.Array):
+        def _fn0(a: jax.Array):
+            return a + b
+
+        def _fn1(a: jax.Array):
+            return a + c
+
+        def _fn2(a: jax.Array):
+            return a + b + c
+
+        res = jax.lax.switch(index, (_fn0, _fn1, _fn2), a)
+        return res
+
+    a = Unitful(jnp.asarray([1.0]), {meters: 1})
+    b = Unitful(jnp.asarray([2.0]), {meters: 1})
+    c = Unitful(jnp.asarray([10.0]), {meters: 1})
+
+    res = quax.quaxify(_outer_fn)(0, a, b, c)
+    assert res.array == 3
+    assert res.units == {meters: 1}
+
+    res = quax.quaxify(_outer_fn)(1, a, b, c)
+    assert res.array == 11
+    assert res.units == {meters: 1}
+
+    res = quax.quaxify(_outer_fn)(2, a, b, c)
+    assert res.array == 13
+    assert res.units == {meters: 1}
+
+
 def test_cond_jit():
     a = Unitful(jnp.asarray(1.0), {meters: 1})
     b = Unitful(jnp.asarray(2.0), {meters: 1})
