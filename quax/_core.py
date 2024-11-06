@@ -2,16 +2,14 @@ import abc
 import functools as ft
 import itertools as it
 from collections.abc import Callable, Sequence
-from typing import Any, cast, Generic, List, Optional, TypeVar, Union
+from typing import Any, cast, Generic, TypeVar, Union
 from typing_extensions import TypeGuard
 
 import equinox as eqx
 import jax
 import jax._src
-import jax.api_util as api_util
 import jax.core as core
 import jax.extend.linear_util as lu
-import jax.interpreters.partial_eval as pe
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import plum
@@ -586,35 +584,27 @@ def _(
 
 @register(jax.lax.cond_p)
 def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
-    def quaxed_jaxpr_out_tree(jaxpr):
-        quax_fn = quaxify(core.jaxpr_as_fun(jaxpr))
-        wrapped_fn, out_tree = api_util.flatten_fun_nokwargs(  # pyright: ignore
-            lu.wrap_init(quax_fn), in_tree
-        )
-        in_avals = tuple([core.raise_to_shaped(core.get_aval(x)) for x in args_leaves])
-        quax_jaxpr = pe.trace_to_jaxpr_dynamic(wrapped_fn, in_avals)[0]
-        return core.ClosedJaxpr(quax_jaxpr, ()), out_tree()
+    flat_args, in_tree = jtu.tree_flatten(args)
 
-    args_leaves, in_tree = jtu.tree_flatten(args)
+    out_trees = []
+    quax_branches = []
+    for jaxpr in branches:
 
-    quax_branches_jaxpr: List[Optional[core.ClosedJaxpr]] = [None] * len(branches)
-    quax_jaxpr0, out_tree0 = quaxed_jaxpr_out_tree(branches[0])
-    quax_branches_jaxpr[0] = quax_jaxpr0
-    for i in range(1, len(branches)):
-        quax_jaxpr, out_tree = quaxed_jaxpr_out_tree(branches[i])
-        jax._src.lax.control_flow.common._check_tree_and_avals(  # pyright: ignore
-            f"branch 0 and {i + 1} outputs",
-            out_tree0,
-            quax_jaxpr0.out_avals,
-            out_tree,
-            quax_jaxpr.out_avals,
-        )
-        quax_branches_jaxpr[i] = quax_jaxpr
+        def flat_quax_call(flat_args):
+            args = jtu.tree_unflatten(in_tree, flat_args)
+            out = quaxify(core.jaxpr_as_fun(jaxpr))(*args)
+            flat_out, out_tree = jtu.tree_flatten(out)
+            out_trees.append(out_tree)
+            return flat_out
 
-    out_val = jax.lax.cond_p.bind(
-        index, *args_leaves, branches=tuple(quax_branches_jaxpr)
-    )
-    result = jtu.tree_unflatten(out_tree0, out_val)
+        quax_jaxpr = jax.make_jaxpr(flat_quax_call)(flat_args)
+        quax_branches.append(quax_jaxpr)
+
+    if any(tree_outs_i != out_trees[0] for tree_outs_i in out_trees[1:]):
+        raise TypeError("all branches output must have the same pytree.")
+
+    out_val = jax.lax.cond_p.bind(index, *flat_args, branches=tuple(quax_branches))
+    result = jtu.tree_unflatten(out_trees[0], out_val)
     return result
 
 
