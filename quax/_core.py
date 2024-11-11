@@ -582,8 +582,16 @@ def _(
     return result
 
 
+_sentinel = object()
+
+
 @register(jax.lax.cond_p)
-def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
+def _(
+    index: ArrayLike,
+    *args: Union[ArrayValue, ArrayLike],
+    branches: tuple,
+    linear=_sentinel,
+):
     flat_args, in_tree = jtu.tree_flatten(args)
 
     out_trees = []
@@ -603,7 +611,13 @@ def _(index: ArrayLike, *args: Union[ArrayValue, ArrayLike], branches: tuple):
     if any(tree_outs_i != out_trees[0] for tree_outs_i in out_trees[1:]):
         raise TypeError("all branches output must have the same pytree.")
 
-    out_val = jax.lax.cond_p.bind(index, *flat_args, branches=tuple(quax_branches))
+    if linear is _sentinel:
+        maybe_linear = {}
+    else:
+        maybe_linear = dict(linear=linear)
+    out_val = jax.lax.cond_p.bind(
+        index, *flat_args, branches=tuple(quax_branches), **maybe_linear
+    )
     result = jtu.tree_unflatten(out_trees[0], out_val)
     return result
 
