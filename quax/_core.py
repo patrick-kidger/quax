@@ -438,7 +438,6 @@ class Value(eqx.Module):
             (Using the [Equinox](https://github.com/patrick-kidger/equinox) library that
             underlies much of the JAX ecosystem.)
         """
-
         arrays: list[ArrayLike] = []
         for x in values:
             if _is_value(x):
@@ -583,4 +582,44 @@ def _(
     return result
 
 
-# TODO: also register higher-order primitives like `lax.cond_p` etc.
+_sentinel = object()
+
+
+@register(jax.lax.cond_p)
+def _(
+    index: ArrayLike,
+    *args: Union[ArrayValue, ArrayLike],
+    branches: tuple,
+    linear=_sentinel,
+):
+    flat_args, in_tree = jtu.tree_flatten(args)
+
+    out_trees = []
+    quax_branches = []
+    for jaxpr in branches:
+
+        def flat_quax_call(flat_args):
+            args = jtu.tree_unflatten(in_tree, flat_args)
+            out = quaxify(core.jaxpr_as_fun(jaxpr))(*args)
+            flat_out, out_tree = jtu.tree_flatten(out)
+            out_trees.append(out_tree)
+            return flat_out
+
+        quax_jaxpr = jax.make_jaxpr(flat_quax_call)(flat_args)
+        quax_branches.append(quax_jaxpr)
+
+    if any(tree_outs_i != out_trees[0] for tree_outs_i in out_trees[1:]):
+        raise TypeError("all branches output must have the same pytree.")
+
+    if linear is _sentinel:
+        maybe_linear = {}
+    else:
+        maybe_linear = dict(linear=linear)
+    out_val = jax.lax.cond_p.bind(
+        index, *flat_args, branches=tuple(quax_branches), **maybe_linear
+    )
+    result = jtu.tree_unflatten(out_trees[0], out_val)
+    return result
+
+
+# TODO: also register higher-order primitives like `lax.scan_p` etc.
