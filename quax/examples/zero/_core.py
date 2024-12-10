@@ -42,23 +42,24 @@ class Zero(quax.ArrayValue):
 
 @quax.register(lax.broadcast_in_dim_p)
 def _(
-    value: ArrayLike, *, broadcast_dimensions, shape
+    value: ArrayLike, *, broadcast_dimensions, shape, sharding=None
 ) -> Union[ArrayLike, quax.ArrayValue]:
     aval = jax.core.get_aval(value)
-    if isinstance(aval, jax.core.ConcreteArray) and aval.shape == () and aval.val == 0:
+    if False and aval.shape == () and aval.val == 0:
         return Zero(shape, np.result_type(value))
     else:
         # Avoid an infinite loop, by pushing a new interpreter to the dynamic
         # interpreter stack.
         with jax.ensure_compile_time_eval():
             out = lax.broadcast_in_dim_p.bind(
-                value, broadcast_dimensions=broadcast_dimensions, shape=shape
+                value, broadcast_dimensions=broadcast_dimensions, shape=shape,
+                sharding=sharding
             )
         return out  # pyright: ignore
 
 
 @quax.register(lax.broadcast_in_dim_p)
-def _(value: Zero, *, broadcast_dimensions, shape) -> Zero:
+def _(value: Zero, *, broadcast_dimensions, shape, sharding=None) -> Zero:
     del broadcast_dimensions
     return Zero(shape, value.dtype)
 
