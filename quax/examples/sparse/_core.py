@@ -78,7 +78,7 @@ def _op_sparse_to_dense(x, y, op):
 
 
 @quax.register(lax.broadcast_in_dim_p)
-def _(value: BCOO, *, broadcast_dimensions, shape) -> BCOO:
+def _(value: BCOO, *, broadcast_dimensions, shape, sharding=None) -> BCOO:
     n_extra_batch_dims = len(shape) - value.ndim
     if broadcast_dimensions != tuple(range(n_extra_batch_dims, len(shape))):
         raise NotImplementedError(
