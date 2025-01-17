@@ -162,13 +162,12 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             with core.set_current_trace(self.parent_trace):
                 out = _default_process(primitive, values, params)
         else:
-            try:
-                method, _ = rule.resolve_method(values)
-            except plum.NotFoundLookupError:
-                with core.set_current_trace(self.parent_trace):
+            with core.set_current_trace(self.parent_trace):
+                try:
+                    method, _ = rule.resolve_method(values)
+                except plum.NotFoundLookupError:
                     out = _default_process(primitive, values, params)
-            else:
-                with core.set_current_trace(self.parent_trace):
+                else:
                     out = method(*values, **params)
         if primitive.multiple_results:
             return [_QuaxTracer(self, _wrap_if_array(x)) for x in out]  # pyright: ignore
