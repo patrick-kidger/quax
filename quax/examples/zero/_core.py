@@ -5,7 +5,6 @@ import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-import numpy as np
 from jaxtyping import Array, ArrayLike
 
 import quax
@@ -47,8 +46,10 @@ def _(
     # Avoid an infinite loop using ensure_compile_time_eval.
     with jax.ensure_compile_time_eval():
         out = lax.broadcast_in_dim_p.bind(
-            value, broadcast_dimensions=broadcast_dimensions, shape=shape,
-            sharding=sharding
+            value,
+            broadcast_dimensions=broadcast_dimensions,
+            shape=shape,
+            sharding=sharding,
         )
     return out  # pyright: ignore
 
