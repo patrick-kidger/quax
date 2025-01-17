@@ -3,7 +3,7 @@ name = "quax"
 version = "0.0.5"
 description = "Multiple dispatch in JAX via custom interpreters."
 readme = "README.md"
-requires-python ="~=3.9"
+requires-python ="~=3.10"
 license = {file = "LICENSE"}
 authors = [
   {name = "Patrick Kidger", email = "contact@kidger.site"},
@@ -24,7 +24,7 @@ classifiers = [
 ]
 urls = {repository = "https://github.com/patrick-kidger/quax" }
 dependencies = [
-    "jax>=0.4.11",
+    "jax>=0.4.38",
     "jaxtyping>=0.2.20",
     "equinox>=0.11.0",
     "plum-dispatch>=2.2.1",
