@@ -9,6 +9,7 @@ import equinox as eqx
 import jax
 import jax._src
 import jax.core as core
+import jax.extend as jex
 import jax.extend.linear_util as lu
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -24,10 +25,12 @@ CT = TypeVar("CT", bound=Callable)
 #
 
 
-_rules: dict[core.Primitive, plum.Function] = {}
+_rules: dict[jex.core.Primitive, plum.Function] = {}
 
 
-def register(primitive: core.Primitive, *, precedence: int = 0) -> Callable[[CT], CT]:
+def register(
+    primitive: jex.core.Primitive, *, precedence: int = 0
+) -> Callable[[CT], CT]:
     """Registers a multiple dispatch implementation for this JAX primitive.
 
     !!! Example
@@ -47,8 +50,8 @@ def register(primitive: core.Primitive, *, precedence: int = 0) -> Callable[[CT]
 
     **Arguments:**
 
-    - `primitive`: The `jax.core.Primitive` to provide a multiple dispatch
-        implementation for.
+    - `primitive`: The `jax.extend.core.Primitive` to provide a multiple
+      dispatch implementation for.
 
     - `precedence`: The precedence of this rule.
         See `plum.Dispatcher.dispatch` for details.
@@ -102,7 +105,7 @@ class _QuaxTracer(core.Tracer):
 
 
 def _default_process(
-    primitive: core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+    primitive: jex.core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
 ):
     defaults = set()
     for x in values:
@@ -374,7 +377,9 @@ class Value(eqx.Module):
 
     @staticmethod
     def default(
-        primitive: core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+        primitive: jex.core.Primitive,
+        values: Sequence[Union[ArrayLike, "Value"]],
+        params,
     ) -> Union[ArrayLike, "Value", Sequence[Union[ArrayLike, "Value"]]]:
         """This is the default rule for when no rule has been [`quax.register`][]'d for
         a primitive.
@@ -394,7 +399,7 @@ class Value(eqx.Module):
 
         **Arguments:**
 
-        - `primitive`: the `jax.core.Primitive` being considered.
+        - `primitive`: the `jax.extend.core.Primitive` being considered.
         - `values`: a sequence of what values this primitive is being called with. Each
             value can either be [`quax.Value`][]s, or a normal JAX arraylike (i.e.
             `bool`/`int`/`float`/`complex`/NumPy scalar/NumPy array/JAX array).
@@ -519,7 +524,7 @@ class _DenseArrayValue(ArrayValue):
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
 def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
     del kwargs
-    fun = quaxify(core.jaxpr_as_fun(jaxpr))
+    fun = quaxify(jex.core.jaxpr_as_fun(jaxpr))
     if inline:
         return fun(*args)
     else:
@@ -541,9 +546,9 @@ def _(
     init_vals = args[cond_nconsts + body_nconsts :]
 
     # compute jaxpr of quaxified body and condition function
-    quax_cond_fn = quaxify(core.jaxpr_as_fun(cond_jaxpr))
+    quax_cond_fn = quaxify(jex.core.jaxpr_as_fun(cond_jaxpr))
     quax_cond_jaxpr = jax.make_jaxpr(quax_cond_fn)(*cond_consts, *init_vals)
-    quax_body_fn = quaxify(core.jaxpr_as_fun(body_jaxpr))
+    quax_body_fn = quaxify(jex.core.jaxpr_as_fun(body_jaxpr))
     quax_body_jaxpr = jax.make_jaxpr(quax_body_fn)(*body_consts, *init_vals)
 
     cond_leaves, _ = jtu.tree_flatten(cond_consts)
@@ -581,7 +586,7 @@ def _(
 
         def flat_quax_call(flat_args):
             args = jtu.tree_unflatten(in_tree, flat_args)
-            out = quaxify(core.jaxpr_as_fun(jaxpr))(*args)
+            out = quaxify(jex.core.jaxpr_as_fun(jaxpr))(*args)
             flat_out, out_tree = jtu.tree_flatten(out)
             out_trees.append(out_tree)
             return flat_out

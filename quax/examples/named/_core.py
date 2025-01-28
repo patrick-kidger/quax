@@ -4,6 +4,7 @@ from typing import Any, Generic, Optional, TypeVar, Union
 
 import equinox as eqx
 import jax.core
+import jax.extend as jex
 import jax.lax as lax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike
@@ -98,7 +99,7 @@ def _broadcast_axes(axes1, axes2):
 
 
 def _register_elementwise_binop(
-    op: Callable[[Any, Any], Any], prim: jax.core.Primitive
+    op: Callable[[Any, Any], Any], prim: jex.core.Primitive
 ):
     quax_op = quax.quaxify(op)
 
