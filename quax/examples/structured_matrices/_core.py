@@ -1,5 +1,3 @@
-from typing import Union
-
 import equinox as eqx
 import jax.core
 import jax.lax as lax
@@ -77,7 +75,7 @@ def _tridiagonal_matvec(
 @quax.register(lax.dot_general_p)
 def _(
     lhs: TridiagonalMatrix,
-    rhs: Union[ArrayLike, quax.ArrayValue],
+    rhs: ArrayLike | quax.ArrayValue,
     *,
     dimension_numbers,
     **kwargs,

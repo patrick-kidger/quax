@@ -44,9 +44,9 @@ addopts = "--jaxtyping-packages=quax,beartype.beartype(conf=beartype.BeartypeCon
 JAX_CHECK_TRACER_LEAKS = 1
 
 [tool.ruff.lint]
-select = ["E", "F", "I001"]
+select = ["E", "F", "I001", "UP"]
 ignore = ["E402", "E721", "E731", "E741", "F722"]
-fixable = ["I001", "F401"]
+fixable = ["I001", "F401", "UP"]
 
 [tool.ruff.lint.flake8-import-conventions.extend-aliases]
 "jax.extend" = "jex"
@@ -60,3 +60,8 @@ order-by-type = false
 [tool.pyright]
 reportIncompatibleMethodOverride = true
 include = ["quax", "tests"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.1.0",
+]

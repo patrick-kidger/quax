@@ -1,6 +1,6 @@
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, TypeVar
 
 import equinox as eqx
 import jax.core
@@ -18,7 +18,7 @@ class Axis:
     axis.
     """
 
-    size: Optional[int]
+    size: int | None
 
 
 Axis.__init__.__doc__ = """**Arguments:**
@@ -109,14 +109,14 @@ def _register_elementwise_binop(
         return NamedArray(quax_op(x.array, y.array), axes)
 
     @quax.register(prim)
-    def _(x: Union[ArrayLike, quax.ArrayValue], y: NamedArray) -> NamedArray:
+    def _(x: ArrayLike | quax.ArrayValue, y: NamedArray) -> NamedArray:
         if quax.quaxify(jnp.shape)(x) == ():
             return NamedArray(quax_op(x, y.array), y.axes)
         else:
             raise ValueError(f"Cannot apply {op} to non-scalar array and named array.")
 
     @quax.register(prim)
-    def _(x: NamedArray, y: Union[ArrayLike, quax.ArrayValue]) -> NamedArray:
+    def _(x: NamedArray, y: ArrayLike | quax.ArrayValue) -> NamedArray:
         if quax.quaxify(jnp.shape)(y) == ():
             return NamedArray(quax_op(x.array, y), x.axes)
         else:

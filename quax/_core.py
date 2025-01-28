@@ -2,8 +2,7 @@ import abc
 import functools as ft
 import itertools as it
 from collections.abc import Callable, Sequence
-from typing import Any, cast, Generic, TypeVar, Union
-from typing_extensions import TypeGuard
+from typing import Any, cast, Generic, TypeGuard, TypeVar, Union
 
 import equinox as eqx
 import jax
@@ -285,7 +284,7 @@ def _unwrap_tracer(trace, x):
 
 class _Quaxify(eqx.Module, Generic[CT]):
     fn: CT
-    filter_spec: PyTree[Union[bool, Callable[[Any], bool]]]
+    filter_spec: PyTree[bool | Callable[[Any], bool]]
     dynamic: bool = eqx.field(static=True)
 
     @property
@@ -310,7 +309,7 @@ class _Quaxify(eqx.Module, Generic[CT]):
             out = jtu.tree_map(ft.partial(_unwrap_tracer, trace), out)
             return out
 
-    def __get__(self, instance: Union[object, None], owner: Any):
+    def __get__(self, instance: object | None, owner: Any):
         if instance is None:
             return self
         return eqx.Partial(self, instance)
@@ -318,7 +317,7 @@ class _Quaxify(eqx.Module, Generic[CT]):
 
 def quaxify(
     fn: CT,
-    filter_spec: PyTree[Union[bool, Callable[[Any], bool]]] = True,
+    filter_spec: PyTree[bool | Callable[[Any], bool]] = True,
 ) -> _Quaxify[CT]:
     """'Quaxifies' a function, so that it understands custom array-ish objects like
     [`quax.examples.lora.LoraArray`][]. When this function is called, multiple dispatch
@@ -522,7 +521,7 @@ class _DenseArrayValue(ArrayValue):
 
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
-def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
+def _(*args: ArrayLike | ArrayValue, jaxpr, inline, **kwargs):
     del kwargs
     fun = quaxify(jex.core.jaxpr_as_fun(jaxpr))
     if inline:
@@ -535,7 +534,7 @@ def _(*args: Union[ArrayLike, ArrayValue], jaxpr, inline, **kwargs):
 
 @register(jax.lax.while_p)
 def _(
-    *args: Union[ArrayValue, ArrayLike],
+    *args: ArrayValue | ArrayLike,
     cond_nconsts: int,
     cond_jaxpr,
     body_nconsts: int,
@@ -574,7 +573,7 @@ _sentinel = object()
 @register(jax.lax.cond_p)
 def _(
     index: ArrayLike,
-    *args: Union[ArrayValue, ArrayLike],
+    *args: ArrayValue | ArrayLike,
     branches: tuple,
     linear=_sentinel,
 ):

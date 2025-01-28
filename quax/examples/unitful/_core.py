@@ -1,5 +1,3 @@
-from typing import Union
-
 import equinox as eqx  # https://github.com/patrick-kidger/equinox
 import jax
 import jax.core as core
@@ -22,7 +20,7 @@ meters = Dimension("m")
 seconds = Dimension("s")
 
 
-def _dim_to_unit(x: Union[Dimension, dict[Dimension, int]]) -> dict[Dimension, int]:
+def _dim_to_unit(x: Dimension | dict[Dimension, int]) -> dict[Dimension, int]:
     if isinstance(x, Dimension):
         return {x: 1}
     else:
