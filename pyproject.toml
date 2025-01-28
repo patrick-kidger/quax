@@ -3,7 +3,7 @@ name = "quax"
 version = "0.0.5"
 description = "Multiple dispatch in JAX via custom interpreters."
 readme = "README.md"
-requires-python ="~=3.10"
+requires-python =">=3.10"
 license = {file = "LICENSE"}
 authors = [
   {name = "Patrick Kidger", email = "contact@kidger.site"},
