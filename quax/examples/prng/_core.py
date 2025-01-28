@@ -1,8 +1,8 @@
 import abc
 import functools as ft
 from collections.abc import Sequence
-from typing import Any, TypeVar
-from typing_extensions import Self, TYPE_CHECKING, TypeAlias
+from typing import Any, TYPE_CHECKING, TypeAlias, TypeVar
+from typing_extensions import Self
 
 import equinox as eqx
 import jax

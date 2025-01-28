@@ -1,5 +1,5 @@
 import functools as ft
-from typing import Any, get_args, Union
+from typing import Any, get_args
 
 import equinox as eqx
 import jax.core
@@ -42,7 +42,7 @@ class Zero(quax.ArrayValue):
 @quax.register(lax.broadcast_in_dim_p)
 def _(
     value: ArrayLike, *, broadcast_dimensions, shape, sharding=None
-) -> Union[ArrayLike, quax.ArrayValue]:
+) -> ArrayLike | quax.ArrayValue:
     # Avoid an infinite loop using ensure_compile_time_eval.
     with jax.ensure_compile_time_eval():
         out = lax.broadcast_in_dim_p.bind(
@@ -87,16 +87,12 @@ def _shape_dtype(x, y, value):
 
 
 @quax.register(lax.add_p)
-def _(
-    x: Union[ArrayLike, quax.ArrayValue], y: Zero
-) -> Union[ArrayLike, quax.ArrayValue]:
+def _(x: ArrayLike | quax.ArrayValue, y: Zero) -> ArrayLike | quax.ArrayValue:
     return _shape_dtype(x, y, value=x)
 
 
 @quax.register(lax.add_p)
-def _(
-    x: Zero, y: Union[ArrayLike, quax.ArrayValue]
-) -> Union[ArrayLike, quax.ArrayValue]:
+def _(x: Zero, y: ArrayLike | quax.ArrayValue) -> ArrayLike | quax.ArrayValue:
     return _shape_dtype(x, y, value=y)
 
 
@@ -106,12 +102,12 @@ def _(x: Zero, y: Zero) -> Zero:
 
 
 @quax.register(lax.mul_p)
-def _(x: Union[ArrayLike, quax.ArrayValue], y: Zero) -> Zero:
+def _(x: ArrayLike | quax.ArrayValue, y: Zero) -> Zero:
     return _shape_dtype(x, y, value=y)
 
 
 @quax.register(lax.mul_p)
-def _(x: Zero, y: Union[ArrayLike, quax.ArrayValue]) -> Zero:
+def _(x: Zero, y: ArrayLike | quax.ArrayValue) -> Zero:
     return _shape_dtype(x, y, value=x)
 
 
@@ -151,12 +147,12 @@ def _zero_matmul(lhs, rhs, kwargs) -> Zero:
 
 
 @quax.register(lax.dot_general_p)
-def _(lhs: Zero, rhs: Union[ArrayLike, quax.ArrayValue], **kwargs) -> Zero:
+def _(lhs: Zero, rhs: ArrayLike | quax.ArrayValue, **kwargs) -> Zero:
     return _zero_matmul(lhs, rhs, kwargs)
 
 
 @quax.register(lax.dot_general_p)
-def _(lhs: Union[ArrayLike, quax.ArrayValue], rhs: Zero, **kwargs) -> Zero:
+def _(lhs: ArrayLike | quax.ArrayValue, rhs: Zero, **kwargs) -> Zero:
     return _zero_matmul(lhs, rhs, kwargs)
 
 
@@ -166,7 +162,7 @@ def _(lhs: Zero, rhs: Zero, **kwargs) -> Zero:
 
 
 @quax.register(lax.integer_pow_p)
-def _integer_pow(x: Zero, *, y: int) -> Union[Array, Zero]:
+def _integer_pow(x: Zero, *, y: int) -> Array | Zero:
     # Zero is a special case, because 0^0 = 1.
     if y == 0:
         return jnp.ones(x.shape, x.dtype)  # pyright: ignore
