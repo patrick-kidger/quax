@@ -95,12 +95,16 @@ def test_decorator_stack_runs(getkey):
     run3(mlp, vector)
 
 
-def test_materialise(getkey):
+def test_materialise():
+    key = jr.key(0)
+
+    key, *subkeys = jr.split(key, 3)
     x_false = lora.LoraArray(
-        jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=False, key=getkey()
+        jr.normal(subkeys[0], (3, 3)), rank=2, allow_materialise=False, key=subkeys[1]
     )
+    key, *subkeys = jr.split(key, 3)
     x_true = lora.LoraArray(
-        jr.normal(getkey(), (3, 3)), rank=2, allow_materialise=True, key=getkey()
+        jr.normal(subkeys[0], (3, 3)), rank=2, allow_materialise=True, key=subkeys[1]
     )
 
     _ = quax.quaxify(jax.nn.relu)(x_true)

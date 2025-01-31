@@ -1,7 +1,7 @@
-import jax.random as jr
+import equinox.internal as eqxi
 import pytest
 
 
 @pytest.fixture()
 def getkey():
-    return lambda: jr.PRNGKey(0)
+    return eqxi.GetKey()
