@@ -40,6 +40,9 @@ include = ["quax/*"]
 [tool.pytest.ini_options]
 addopts = "--jaxtyping-packages=quax,beartype.beartype(conf=beartype.BeartypeConf(strategy=beartype.BeartypeStrategy.On))"
 
+[tool.pytest_env]
+JAX_CHECK_TRACER_LEAKS = 1
+
 [tool.ruff.lint]
 select = ["E", "F", "I001"]
 ignore = ["E402", "E721", "E731", "E741", "F722"]
