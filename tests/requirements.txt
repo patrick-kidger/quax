@@ -1,3 +1,4 @@
 beartype
 pytest
+pytest-env
 jax[cpu]
