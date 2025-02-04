@@ -5,7 +5,6 @@ from collections.abc import Callable, Sequence
 from typing import Any, cast, Generic, TypeVar, Union
 from typing_extensions import TypeGuard
 
-import equinox as eqx
 import jax
 import jax._src
 import jax.core as core
@@ -15,6 +14,8 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import plum
 from jax.custom_derivatives import SymbolicZero as SZ
+
+import equinox as eqx
 from jaxtyping import ArrayLike, PyTree
 
 

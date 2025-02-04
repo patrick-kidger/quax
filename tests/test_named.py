@@ -1,14 +1,14 @@
 from typing import cast
 
-import equinox as eqx
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
-from jaxtyping import Array
 
+import equinox as eqx
 import quax
 import quax.examples.named as named
+from jaxtyping import Array
 
 
 def test_init(getkey):

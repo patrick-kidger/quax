@@ -1,14 +1,14 @@
 from typing import Union
 
-import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import jax.tree_util as jtu
-from jaxtyping import Array, ArrayLike, PRNGKeyArray, PyTree, Shaped
 
+import equinox as eqx
 import quax
+from jaxtyping import Array, ArrayLike, PRNGKeyArray, PyTree, Shaped
 
 
 class LoraArray(quax.ArrayValue):

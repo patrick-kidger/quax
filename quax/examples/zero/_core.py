@@ -1,13 +1,13 @@
 import functools as ft
 from typing import Any, get_args, Union
 
-import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
 
+import equinox as eqx
 import quax
+from jaxtyping import Array, ArrayLike
 
 
 class Zero(quax.ArrayValue):

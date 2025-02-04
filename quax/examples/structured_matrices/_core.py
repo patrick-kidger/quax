@@ -1,12 +1,12 @@
 from typing import Union
 
-import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike, Shaped
 
+import equinox as eqx
 import quax
+from jaxtyping import Array, ArrayLike, Shaped
 
 
 class TridiagonalMatrix(quax.ArrayValue):

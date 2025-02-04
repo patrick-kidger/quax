@@ -30,6 +30,12 @@ dependencies = [
     "plum-dispatch>=2.2.1",
 ]
 
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "pre-commit>=4.1.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -38,6 +44,7 @@ build-backend = "hatchling.build"
 include = ["quax/*"]
 
 [tool.pytest.ini_options]
+minversion = 8.0
 addopts = "--jaxtyping-packages=quax,beartype.beartype(conf=beartype.BeartypeConf(strategy=beartype.BeartypeStrategy.On))"
 
 [tool.pytest_env]
@@ -55,6 +62,7 @@ fixable = ["I001", "F401"]
 combine-as-imports = true
 lines-after-imports = 2
 extra-standard-library = ["typing_extensions"]
+known-first-party = ["equinox", "jaxtyping"]
 order-by-type = false
 
 [tool.pyright]

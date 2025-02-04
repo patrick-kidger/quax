@@ -1,8 +1,8 @@
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import jax.random as jr
 
+import equinox as eqx
 import quax
 import quax.examples.sparse as sparse
 

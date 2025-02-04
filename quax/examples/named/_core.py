@@ -2,14 +2,14 @@ import dataclasses
 from collections.abc import Callable
 from typing import Any, Generic, Optional, TypeVar, Union
 
-import equinox as eqx
 import jax.core
 import jax.extend as jex
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import ArrayLike
 
+import equinox as eqx
 import quax
+from jaxtyping import ArrayLike
 
 
 @dataclasses.dataclass(frozen=True, eq=False)

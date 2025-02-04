@@ -1,12 +1,12 @@
 from typing import get_args
 
-import equinox as eqx
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike, Integer, Shaped
 
+import equinox as eqx
 import quax
+from jaxtyping import Array, ArrayLike, Integer, Shaped
 
 
 class BCOO(quax.ArrayValue):

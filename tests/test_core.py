@@ -1,14 +1,14 @@
 from typing import cast
 
-import equinox as eqx
 import jax
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array
 
+import equinox as eqx
 import quax
+from jaxtyping import Array
 
 
 def test_jit_inline():

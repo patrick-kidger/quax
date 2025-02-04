@@ -1,10 +1,10 @@
-import equinox as eqx
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
 
+import equinox as eqx
 import quax
 import quax.examples.zero as zero
 

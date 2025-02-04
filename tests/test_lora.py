@@ -1,14 +1,14 @@
-import equinox as eqx
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
-from jaxtyping import TypeCheckError
 from plum import NotFoundLookupError
 
+import equinox as eqx
 import quax
 import quax.examples.lora as lora
+from jaxtyping import TypeCheckError
 
 
 def test_linear(getkey):

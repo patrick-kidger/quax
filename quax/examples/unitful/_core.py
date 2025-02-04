@@ -1,12 +1,12 @@
 from typing import Union
 
-import equinox as eqx  # https://github.com/patrick-kidger/equinox
 import jax
 import jax.core as core
 import jax.numpy as jnp
-from jaxtyping import ArrayLike  # https://github.com/patrick-kidger/jaxtyping
 
+import equinox as eqx  # https://github.com/patrick-kidger/equinox
 import quax
+from jaxtyping import ArrayLike  # https://github.com/patrick-kidger/jaxtyping
 
 
 class Dimension:

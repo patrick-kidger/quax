@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from typing import Any, TypeVar
 from typing_extensions import Self, TYPE_CHECKING, TypeAlias
 
-import equinox as eqx
 import jax
 import jax._src.prng
 import jax.core
@@ -12,9 +11,10 @@ import jax.lax as lax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
-from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
 
+import equinox as eqx
 import quax
+from jaxtyping import Array, ArrayLike, Float, Integer, UInt, UInt32
 
 
 RealArray: TypeAlias = ArrayLike
