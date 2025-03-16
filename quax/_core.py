@@ -153,7 +153,7 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
         return _DenseArrayValue(val)
 
     def process_primitive(self, primitive, tracers, params):
-        params = dict(params)
+        # params = dict(params)
         # params.pop("sharding", None)
         values = [self.to_value(t) for t in tracers]
         values = tuple(
