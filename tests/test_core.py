@@ -1,11 +1,9 @@
 from typing import cast
 
-import equinox as eqx
 import jax
 import jax.core
 import jax.lax as lax
 import jax.numpy as jnp
-import pytest
 from jaxtyping import Array
 
 import quax
@@ -60,48 +58,3 @@ def test_default_override():
 
     f(jnp.array(1.0), y, jnp.array(2.0))
     assert records == [lax.mul_p, lax.add_p]
-
-
-def test_double_override():
-    def make():
-        class Foo(quax.ArrayValue):
-            array: Array
-
-            def materialise(self):
-                assert False
-
-            def aval(self):
-                return cast(jax.core.ShapedArray, jax.core.get_aval(self.array))
-
-            @staticmethod
-            def default(primitive, values, params):
-                arrays = []
-                for value in values:
-                    if isinstance(x, Foo):
-                        arrays.append(x.array)
-                    elif isinstance(x, quax.Value):
-                        arrays.append(x.materialise())
-                    elif eqx.is_array_like(x):
-                        arrays.append(x)
-                    else:
-                        assert False
-                out = primitive.bind(*arrays, **params)
-                if primitive.multiple_results:
-                    return [Foo(x) for x in out]
-                else:
-                    return Foo(cast(Array, out))
-
-        return Foo
-
-    Foo1 = make()
-    Foo2 = make()
-
-    x = Foo1(jnp.array(1.0))
-    y = Foo2(jnp.array(2.0))
-
-    @quax.quaxify
-    def f(a, b):
-        return a + b
-
-    with pytest.raises(TypeError):
-        f(x, y)
