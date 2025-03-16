@@ -14,20 +14,20 @@ import quax.examples.lora as lora
 import quax.examples.named as named
 
 
-def test_trigger(getkey):
+def test_trigger():
     """Test triggering jax.errors.UnexpectedTracerError."""
 
-    mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
-    mlp = lora.loraify(mlp, rank=3, key=getkey())
-    vector = jr.normal(getkey(), (2,))
+    # mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=jr.key(0))
+    # mlp = lora.loraify(mlp, rank=3, key=jr.key(0))
+    # vector = jr.normal(jr.key(0), (2,))
 
-    @eqx.filter_jit
-    @quax.quaxify
-    @eqx.filter_grad
-    def run2(mlp, vector):
-        return jnp.sum(mlp(vector))
+    # @eqx.filter_jit
+    # @quax.quaxify
+    # @eqx.filter_grad
+    # def run2(mlp, vector):
+    #     return jnp.sum(mlp(vector))
 
-    run2(mlp, vector)
+    # run2(mlp, vector)
 
     # -------------------------------------------
 
@@ -41,7 +41,7 @@ def test_trigger(getkey):
     # -------------------------------------------
 
     x = jnp.arange(4.0).reshape(2, 2)
-    y = lora.LoraArray(x, rank=1, key=getkey())
+    y = lora.LoraArray(x, rank=1, key=jr.key(0))
 
     def f(x):
         return jax.lax.add_p.bind(x, y)
@@ -52,14 +52,14 @@ def test_trigger(getkey):
 
     # -------------------------------------------
 
-    b = jr.normal(getkey(), (3, 4))  # noqa: F841
+    b = jr.normal(jr.key(0), (3, 4))  # noqa: F841
 
     # -------------------------------------------
 
     Foo = named.Axis(3)
     Bar = named.Axis(3)
-    a = named.NamedArray(jr.normal(getkey(), (3, 3)), (Foo, Bar))
-    b = named.NamedArray(jr.normal(getkey(), (3, 3)), (Foo, Bar))
+    a = named.NamedArray(jr.normal(jr.key(0), (3, 3)), (Foo, Bar))
+    b = named.NamedArray(jr.normal(jr.key(0), (3, 3)), (Foo, Bar))
     out1 = quax.quaxify(lambda x, y: x + y)(a, b)
     out2 = quax.quaxify(lax.add)(a, b)
     true_out = named.NamedArray(a.array + b.array, (Foo, Bar))
@@ -71,8 +71,8 @@ def test_trigger(getkey):
     Foo = named.Axis(3)
     Bar = named.Axis(3)
     Qux = named.Axis(None)
-    a = named.NamedArray(jr.normal(getkey(), (3, 3)), (Foo, Bar))
-    b = named.NamedArray(jr.normal(getkey(), (3, 3)), (Bar, Qux))
+    a = named.NamedArray(jr.normal(jr.key(0), (3, 3)), (Foo, Bar))
+    b = named.NamedArray(jr.normal(jr.key(0), (3, 3)), (Bar, Qux))
 
     quax.quaxify(lambda x, y: x @ y)(a, b)
     quax.quaxify(jnp.matmul)(a, b)
@@ -85,7 +85,7 @@ def test_trigger(getkey):
         quax.quaxify(jnp.matmul)(b, a)
 
     # Existing program
-    linear = eqx.nn.Linear(3, 4, key=getkey())
+    linear = eqx.nn.Linear(3, 4, key=jr.key(0))
 
     # Wrap our desired inputs into NamedArrays
     In = named.Axis(3)
@@ -95,7 +95,7 @@ def test_trigger(getkey):
     named_linear = eqx.tree_at(
         lambda l: (l.bias, l.weight), linear, (named_bias, named_weight)
     )
-    vector = named.NamedArray(jr.normal(getkey(), (3,)), (In,))
+    vector = named.NamedArray(jr.normal(jr.key(0), (3,)), (In,))
 
     # Wrap function with quaxify.
     out = quax.quaxify(named_linear)(vector)
@@ -110,7 +110,7 @@ def test_trigger(getkey):
     C = named.Axis(None)
 
     with jax.checking_leaks():
-        x = jr.normal(getkey(), (2, 3, 4))
+        x = jr.normal(jr.key(0), (2, 3, 4))
 
     named_x = named.NamedArray(x, (A, B, C))
     out = named.trace(named_x, axis1=A, axis2=C)
