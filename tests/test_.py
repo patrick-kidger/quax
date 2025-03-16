@@ -6,42 +6,68 @@ import jax.lax as lax
 import jax.numpy as jnp
 import jax.random as jr
 import pytest
-from jaxtyping import Array
+from jaxtyping import Array, TypeCheckError
+from plum import NotFoundLookupError
 
 import quax
+import quax.examples.lora as lora
 import quax.examples.named as named
 
 
-def test_init(getkey):
-    # Foo = named.Axis(3)
-    # Bar = named.Axis(3)
-    # a = jr.normal(getkey(), (3, 3))
-    # a = named.NamedArray(a, (Foo, Bar))
+def test_trigger(getkey):
+    """Test triggering jax.errors.UnexpectedTracerError."""
 
-    # with pytest.raises(ValueError):
-    #     a = jr.normal(getkey(), (3, 3))
-    #     a = named.NamedArray(a, (Foo, Foo))
+    mlp = eqx.nn.MLP(2, 2, 64, 3, activation=jax.nn.softplus, key=getkey())
+    mlp = lora.loraify(mlp, rank=3, key=getkey())
+    vector = jr.normal(getkey(), (2,))
+
+    @eqx.filter_jit
+    @quax.quaxify
+    @eqx.filter_grad
+    def run2(mlp, vector):
+        return jnp.sum(mlp(vector))
+
+    run2(mlp, vector)
+
+    # -------------------------------------------
+
+    with pytest.raises(RuntimeError, match="Refusing to materialise"):
+        x_false = lora.LoraArray(
+            jr.normal(jr.key(0), (3, 3)), rank=2, allow_materialise=False, key=jr.key(1)
+        )
+
+        _ = quax.quaxify(jax.nn.relu)(x_false)
+
+    # -------------------------------------------
+
+    x = jnp.arange(4.0).reshape(2, 2)
+    y = lora.LoraArray(x, rank=1, key=getkey())
+
+    def f(x):
+        return jax.lax.add_p.bind(x, y)
+
+    # Error type depends on whether jaxtyping is on
+    with pytest.raises((TypeCheckError, NotFoundLookupError)):
+        _ = quax.quaxify(f)(y)
+
+    # -------------------------------------------
 
     b = jr.normal(getkey(), (3, 4))  # noqa: F841
-    # with pytest.raises(ValueError):
-    #     b = named.NamedArray(b, (Foo, Bar))
 
+    # -------------------------------------------
 
-def test_add(getkey):
     Foo = named.Axis(3)
     Bar = named.Axis(3)
-    a = jr.normal(getkey(), (3, 3))
-    a = named.NamedArray(a, (Foo, Bar))
-    b = jr.normal(getkey(), (3, 3))
-    b = named.NamedArray(b, (Foo, Bar))
+    a = named.NamedArray(jr.normal(getkey(), (3, 3)), (Foo, Bar))
+    b = named.NamedArray(jr.normal(getkey(), (3, 3)), (Foo, Bar))
     out1 = quax.quaxify(lambda x, y: x + y)(a, b)
     out2 = quax.quaxify(lax.add)(a, b)
     true_out = named.NamedArray(a.array + b.array, (Foo, Bar))
     assert out1 == true_out
     assert out2 == true_out
 
+    # -------------------------------------------
 
-def test_matmul(getkey):
     Foo = named.Axis(3)
     Bar = named.Axis(3)
     Qux = named.Axis(None)
@@ -51,17 +77,12 @@ def test_matmul(getkey):
     quax.quaxify(lambda x, y: x @ y)(a, b)
     quax.quaxify(jnp.matmul)(a, b)
 
-    with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
+    match = "Cannot contract mismatched dimensions"
+    with pytest.raises(TypeError, match=match):
         quax.quaxify(lambda x, y: x @ y)(b, a)
-    with pytest.raises(TypeError, match="Cannot contract mismatched dimensions"):
+    match = "Cannot contract mismatched dimensions"
+    with pytest.raises(TypeError, match=match):
         quax.quaxify(jnp.matmul)(b, a)
-
-
-def test_existing_function(getkey):
-    # We can use NamedArrays even in functions that weren't designed for it! The output
-    # will be a NamedArray as well!
-    # In this case, eqx.nn.Linear.__call__ was not written expecting a NamedArray. It
-    # works anyway :)
 
     # Existing program
     linear = eqx.nn.Linear(3, 4, key=getkey())
@@ -82,8 +103,8 @@ def test_existing_function(getkey):
     true_out = named.NamedArray(linear(vector.array), (Out,))
     assert out == true_out
 
+    # -------------------------------------------
 
-def test_trace(getkey):
     A = named.Axis(None)
     B = named.Axis(None)
     C = named.Axis(None)
