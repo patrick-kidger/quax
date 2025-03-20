@@ -1,8 +1,7 @@
 import abc
 import functools as ft
 from collections.abc import Sequence
-from typing import Any, TYPE_CHECKING, TypeAlias, TypeVar
-from typing_extensions import Self
+from typing import Any, TypeAlias, TypeVar
 
 import equinox as eqx
 import jax
@@ -20,11 +19,8 @@ import quax
 RealArray: TypeAlias = ArrayLike
 DTypeLikeFloat: TypeAlias = Any
 DTypeLikeInexact: TypeAlias = Any
-if TYPE_CHECKING:
-    SelfPRNG = Self
-else:
-    # beartype+jaxtyping doesn't support Self
-    SelfPRNG = "PRNG"
+
+PRNG_T = TypeVar("PRNG_T", bound="PRNG")
 
 
 class PRNG(quax.ArrayValue):
@@ -41,7 +37,7 @@ class PRNG(quax.ArrayValue):
         """Generate random bits from this PRNG. Must be implemented in subclasses."""
 
     @abc.abstractmethod
-    def split(self, num: int) -> Sequence[SelfPRNG]:
+    def split(self: PRNG_T, num: int) -> Sequence[PRNG_T]:
         """Split this PRNG into multiple sub-PRNGs. Must be implemented in
         subclasses.
         """
@@ -148,9 +144,6 @@ def _normal_real(key, shape, dtype):
     hi = np.array(1.0, dtype)
     u = uniform(key, shape, dtype, lo, hi)
     return lax.mul(np.array(np.sqrt(2), dtype), lax.erf_inv(u))
-
-
-PRNG_T = TypeVar("PRNG_T", bound=PRNG)
 
 
 def split(key: PRNG_T, num: int = 2) -> Sequence[PRNG_T]:
