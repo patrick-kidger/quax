@@ -87,5 +87,6 @@ def _(x: Unitful, y: Unitful, **kwargs):
 
 @quax.register(jax.lax.broadcast_in_dim_p)
 def _(operand: Unitful, **kwargs):
+    kwargs.pop("sharding", None)  # TODO: handle sharding
     new_arr = jax.lax.broadcast_in_dim(operand.array, **kwargs)
     return Unitful(new_arr, operand.units)
