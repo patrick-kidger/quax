@@ -1,4 +1,4 @@
 beartype
 pytest
-pytest-env
+pytest-env>=1.1.5
 jax[cpu]
