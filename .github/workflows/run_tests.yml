@@ -37,25 +37,27 @@ jobs:
         os: [ ubuntu-latest ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r ./tests/requirements.txt
+      - name: Install the project
+        run: uv sync --group test
 
-      - name: Test with pytest
+      - name: Test package
         run: |
-          python -m pip install .
-          python -m pytest
-  
+          uv run pytest
+
   oldest-supported:
     needs: [format]
     runs-on: ubuntu-latest
@@ -76,7 +78,7 @@ jobs:
 
       - name: Install the project
         run: uv sync --group test --resolution lowest
-      
+
       - name: Test package
         run: >-
           uv run pytest
