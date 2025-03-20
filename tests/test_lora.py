@@ -129,6 +129,9 @@ def test_regression_38(getkey):
 
     func = quax.quaxify(f)
 
-    # Error type depends on whether jaxtyping is on
-    with pytest.raises((TypeCheckError, NotFoundLookupError)):
+    # Error type depends on whether jaxtyping is on. TypeCheckError is raised
+    # when jaxtyping is on. NotFoundLookupError is raised when jaxtyping is off,
+    # which then kicks over to the default process, which can raise a
+    # RuntimeError if allow_materialise is False.
+    with pytest.raises((TypeCheckError, NotFoundLookupError, RuntimeError)):
         _ = func(y)
