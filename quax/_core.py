@@ -1,7 +1,7 @@
 import abc
-import functools as ft
 import itertools as it
 from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 from typing import Any, cast, Generic, TypeGuard, TypeVar, Union
 
 import equinox as eqx
@@ -296,17 +296,22 @@ class _Quaxify(eqx.Module, Generic[CT]):
             (self.fn, args, kwargs), self.filter_spec, is_leaf=_is_value
         )
         tag = core.TraceTag()
-        with core.take_current_trace() as parent_trace:
+        with ExitStack() as managed_stack:
+            # Build and set a Quax trace from the current trace
+            parent_trace = managed_stack.enter_context(core.take_current_trace())
             trace = _QuaxTrace(parent_trace, tag)
+            managed_stack.enter_context(core.set_current_trace(trace))
+            # Wrap the dynamic arguments into Quax tracers
             dynamic = jtu.tree_map(
-                ft.partial(_wrap_tracer, trace),
-                dynamic,
-                is_leaf=_is_value,
+                eqx.Partial(_wrap_tracer, trace), dynamic, is_leaf=_is_value
             )
             fn, args, kwargs = eqx.combine(dynamic, static)
-            with core.set_current_trace(trace):
-                out = fn(*args, **kwargs)
-            out = jtu.tree_map(ft.partial(_unwrap_tracer, trace), out)
+            # Trace through the function with the quax tracers
+            out = fn(*args, **kwargs)
+            # Unwrap the quax tracers to jax tracers
+            out = jtu.tree_map(eqx.Partial(_unwrap_tracer, trace), out)
+
+            # NOTE: must be within the `ExitStack` context manager.
             return out
 
     def __get__(self, instance: object | None, owner: Any):
