@@ -143,9 +143,12 @@ def _wrap_if_array(x: Union[ArrayLike, "Value"]) -> "Value":
 
 
 class _QuaxTrace(core.Trace[_QuaxTracer]):
+    __slots__ = ("tag", "parent_trace")
+
     def __init__(self, parent_trace, tag):
         self.tag = tag
         self.parent_trace = parent_trace
+        super().__init__()
 
     def to_value(self, val):
         if isinstance(val, _QuaxTracer) and val._trace.tag is self.tag:  # type: ignore[attr-defined]
