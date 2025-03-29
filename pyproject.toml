@@ -24,8 +24,8 @@ classifiers = [
 ]
 urls = {repository = "https://github.com/patrick-kidger/quax" }
 dependencies = [
-    "jax>=0.4.38,<0.5.3",
-    "jaxtyping>=0.2.20,<0.3",
+    "jax>=0.4.38",
+    "jaxtyping>=0.2.20",
     "equinox>=0.11.0",
     "plum-dispatch>=2.2.1",
 ]
@@ -63,5 +63,23 @@ include = ["quax", "tests"]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "pre-commit>=4.1.0",
+]
+test = [
+    "beartype>=0.19.0",
+    "cffi>1.16",
+    "pillow>=10.1",
+    "pytest>=8.3.5",
+    "py>=1.11",
+    "pytest-env>=1.1.5",
+    "jax[cpu]>=0.4.38",
+]
+
+[tool.uv]
+constraint-dependencies = [
+    "appnope>=0.1.4",
+    "decorator>=5.1.1",
+    "matplotlib>=3.8",
+    "pygments>=2.18"
 ]
