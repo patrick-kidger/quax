@@ -85,10 +85,11 @@ def test_existing_function(getkey):
 
 
 def test_trace(getkey):
+    _, key = jr.split(getkey())
     A = named.Axis(None)
     B = named.Axis(None)
     C = named.Axis(None)
-    x = jr.normal(getkey(), (2, 3, 4))
+    x = jr.normal(key, (2, 3, 4))
     named_x = named.NamedArray(x, (A, B, C))
     out = named.trace(named_x, axis1=A, axis2=C)
     true_out = jnp.trace(x, axis1=0, axis2=2)
