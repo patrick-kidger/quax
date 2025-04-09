@@ -12,9 +12,9 @@ class TridiagonalMatrix(quax.ArrayValue):
     diagonals.
     """
 
-    lower_diag: 'Shaped[Array, "*batch size-1"]'
-    main_diag: Shaped[Array, "*batch size"]
-    upper_diag: Shaped[Array, "*batch size-1"]
+    lower_diag: Shaped[Array, "*batch size"]
+    main_diag: Shaped[Array, "*batch size+1"]
+    upper_diag: Shaped[Array, "*batch size"]
     allow_materialise: bool = eqx.field(default=False, static=True)
 
     def __check_init__(self):

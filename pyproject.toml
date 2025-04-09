@@ -24,21 +24,19 @@ classifiers = [
 ]
 urls = {repository = "https://github.com/patrick-kidger/quax" }
 dependencies = [
-    "jax>=0.4.38",
-    "jaxtyping>=0.2.20,<0.3",
-    "equinox>=0.11.0",
+    "jax>=0.5.3",
+    "jaxtyping>=0.3.1",
+    "equinox>=0.12.1",
     "plum-dispatch>=2.2.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pre-commit>=4.1.0",
-]
-test = [
-    "beartype>=0.19.0",
+    "beartype>=0.20.2",
+    "jax[cpu]",
     "pytest>=8.3.5",
     "pytest-env>=1.1.5",
-    "jax[cpu]>=0.4.38",
 ]
 
 [build-system]
