@@ -22,7 +22,7 @@ jobs:
           python-version: "3.10"
 
       - name: Checks with pre-commit
-        uses: pre-commit/action@v2.0.3
+        uses: pre-commit/action@v3.0.1
 
   run-test:
     needs: [format]
