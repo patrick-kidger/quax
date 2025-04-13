@@ -15,12 +15,13 @@ A developer of a library built on Quax (e.g. if you wanted to write your own lib
 ::: quax.register
 
 ::: quax.Value
-    selection:
+    options:
         members:
             - aval
             - default
             - materialise
 
 ::: quax.ArrayValue
-    selection:
-        members: false
+    options:
+        members:
+            - does_not_exit

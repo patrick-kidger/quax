@@ -11,7 +11,7 @@ For a user who only wants to LoRA'ify only part of their model, the underlying [
 ::: quax.examples.lora.loraify
 
 ::: quax.examples.lora.LoraArray
-    selection:
+    options:
         members:
             - __init__
 
