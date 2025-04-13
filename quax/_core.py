@@ -321,7 +321,7 @@ class _Quaxify(eqx.Module, Generic[CT]):
 def quaxify(
     fn: CT,
     filter_spec: PyTree[bool | Callable[[Any], bool]] = True,
-) -> _Quaxify[CT]:
+) -> CT:
     """'Quaxifies' a function, so that it understands custom array-ish objects like
     [`quax.examples.lora.LoraArray`][]. When this function is called, multiple dispatch
     will be performed against the types it is called with.
@@ -344,10 +344,7 @@ def quaxify(
         nested `quax.quaxify`. See the
         [advanced tutorial](../examples/redispatch.ipynb).
     """
-    return cast(
-        _Quaxify[CT],
-        eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False)),
-    )
+    return cast(CT, eqx.module_update_wrapper(_Quaxify(fn, filter_spec, dynamic=False)))
 
 
 #

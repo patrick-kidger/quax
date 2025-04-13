@@ -38,6 +38,15 @@ dev = [
     "pytest>=8.3.5",
     "pytest-env>=1.1.5",
 ]
+docs = [
+  "hippogriffe==0.2.0",
+  "mkdocs==1.6.1",
+  "mkdocs-include-exclude-files==0.1.0",
+  "mkdocs-ipynb==0.1.1",
+  "mkdocs-material==9.6.7",
+  "mkdocstrings[python]==0.28.3",
+  "pymdown-extensions==10.14.3",
+]
 
 [build-system]
 requires = ["hatchling"]
