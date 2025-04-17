@@ -1,3 +1,5 @@
+from typing import cast
+
 import equinox as eqx
 import jax.core
 import jax.lax as lax
@@ -193,6 +195,7 @@ def _lora_array_matmul(
     dimension_numbers,
     **kwargs,
 ) -> ArrayLike | quax.ArrayValue:
+    rhs = cast("Array", rhs)  # quax(jax) is type broadened.
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     [ndim] = {lhs.a.ndim, lhs.b.ndim, lhs.w.ndim}
     if lhs_contract == (ndim - 1,) and (ndim - 2 not in lhs_batch):
@@ -237,4 +240,4 @@ def _(
     n_rhs_uncontracted = rhs.aval().ndim - len(rhs_contract) - len(rhs_batch)
     src = tuple(range(n_sharedbatch, n_sharedbatch + n_rhs_uncontracted))
     dest = tuple(range(-n_rhs_uncontracted, 0))
-    return quax.quaxify(jnp.moveaxis)(out, src, dest)
+    return quax.quaxify(jnp.moveaxis)(out, src, dest)  # pyright: ignore[reportArgumentType,reportAssignmentType]

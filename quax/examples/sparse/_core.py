@@ -118,7 +118,7 @@ def _(x: BCOO, y: BCOO):
             "`BCOO(...) + BCOO(...)` currently requires that both matrices have the "
             "same number of sparse dimensions."
         )
-    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)  # pyright: ignore[reportArgumentType,reportAssignmentType]
     assert isinstance(x, BCOO)
     assert isinstance(y, BCOO)
     data = jnp.concatenate([x.data, y.data], axis=-1)
@@ -129,7 +129,7 @@ def _(x: BCOO, y: BCOO):
 
 @quax.register(lax.add_p)
 def _add_bcoo_dense(x: BCOO, y: ArrayLike) -> ArrayLike:
-    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)  # pyright: ignore[reportArgumentType,reportAssignmentType]
     assert isinstance(x, BCOO)
     assert isinstance(y, get_args(ArrayLike))
     y = jnp.asarray(y)
@@ -152,7 +152,7 @@ def _(x: BCOO, y: BCOO):
 
 @quax.register(lax.mul_p)
 def _mul_bcoo_dense(x: BCOO, y: ArrayLike) -> BCOO:
-    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)
+    x, y = quax.quaxify(jnp.broadcast_arrays)(x, y)  # pyright: ignore[reportArgumentType,reportAssignmentType]
     assert isinstance(x, BCOO)
     assert isinstance(y, get_args(ArrayLike))
     y = jnp.asarray(y)

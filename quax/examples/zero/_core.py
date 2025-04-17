@@ -1,5 +1,5 @@
 import functools as ft
-from typing import Any, get_args
+from typing import Any, cast, get_args, TypeVar
 
 import equinox as eqx
 import jax.core
@@ -8,6 +8,9 @@ import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
 
 import quax
+
+
+T = TypeVar("T")
 
 
 class Zero(quax.ArrayValue):
@@ -78,12 +81,12 @@ def _to_struct(x):
 
 
 @quax.quaxify
-def _shape_dtype(x, y, value):
+def _shape_dtype(x, y, value: T) -> T:
     x = _to_struct(x)
     y = _to_struct(y)
     shape = jnp.broadcast_shapes(x.shape, y.shape)
     dtype = jnp.result_type(x.dtype, y.dtype)
-    return jnp.broadcast_to(value, shape).astype(dtype)
+    return cast(T, jnp.broadcast_to(cast(ArrayLike, value), shape).astype(dtype))
 
 
 @quax.register(lax.add_p)

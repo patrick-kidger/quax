@@ -49,17 +49,17 @@ class ThreeFry(PRNG):
     value: UInt32[Array, "*batch 2"]
 
     def __init__(self, seed: Integer[ArrayLike, ""]):
-        self.value = jax._src.prng.threefry_seed(jnp.asarray(seed))
+        self.value = jax._src.prng.threefry_seed(jnp.asarray(seed))  # pyright: ignore[reportPrivateImportUsage]
 
     def aval(self):
         *shape, _ = self.value.shape
         return jax.core.ShapedArray(shape, jnp.uint32)
 
     def random_bits(self, bit_width: int, shape: tuple[int, ...]) -> UInt[Array, "..."]:
-        return jax._src.prng.threefry_random_bits(self.value, bit_width, shape)
+        return jax._src.prng.threefry_random_bits(self.value, bit_width, shape)  # pyright: ignore[reportPrivateImportUsage]
 
     def split(self, num: int) -> Sequence["ThreeFry"]:
-        new_values = jax._src.prng.threefry_split(self.value, (num,))
+        new_values = jax._src.prng.threefry_split(self.value, (num,))  # pyright: ignore[reportPrivateImportUsage]
         return [eqx.tree_at(lambda s: s.value, self, x) for x in new_values]
 
 

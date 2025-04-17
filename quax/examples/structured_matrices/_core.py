@@ -1,3 +1,5 @@
+from typing import cast
+
 import equinox as eqx
 import jax.core
 import jax.lax as lax
@@ -80,6 +82,7 @@ def _(
     dimension_numbers,
     **kwargs,
 ):
+    rhs = cast("Array", rhs)  # quax(jax) is type broadened.
     ((lhs_contract, rhs_contract), (lhs_batch, rhs_batch)) = dimension_numbers
     lhs_ndim = lhs.ndim
     if lhs_contract == (lhs_ndim - 1,) and (lhs_ndim - 2 not in lhs_batch):
