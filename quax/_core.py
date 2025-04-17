@@ -8,7 +8,7 @@ import equinox as eqx
 import jax
 import jax._src
 import jax.core as core
-import jax.extend as jex
+import jax.extend.core as jexc
 import jax.extend.linear_util as lu
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -24,12 +24,10 @@ CT = TypeVar("CT", bound=Callable)
 #
 
 
-_rules: dict[jex.core.Primitive, plum.Function] = {}
+_rules: dict[jexc.Primitive, plum.Function] = {}
 
 
-def register(
-    primitive: jex.core.Primitive, *, precedence: int = 0
-) -> Callable[[CT], CT]:
+def register(primitive: jexc.Primitive, *, precedence: int = 0) -> Callable[[CT], CT]:
     """Registers a multiple dispatch implementation for this JAX primitive.
 
     !!! Example
@@ -98,13 +96,13 @@ class _QuaxTracer(core.Tracer):
 
     def full_lower(self):
         if isinstance(self.value, _DenseArrayValue):
-            return core.full_lower(self.value.array)
+            return core.full_lower(self.value.array)  # pyright: ignore[reportAttributeAccessIssue]
         else:
             return self
 
 
 def _default_process(
-    primitive: jex.core.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
+    primitive: jexc.Primitive, values: Sequence[Union[ArrayLike, "Value"]], params
 ):
     defaults = set()
     for x in values:
@@ -376,7 +374,7 @@ class Value(eqx.Module):
 
     @staticmethod
     def default(
-        primitive: jex.core.Primitive,
+        primitive: jexc.Primitive,
         values: Sequence[Union[ArrayLike, "Value"]],
         params,
     ) -> Union[ArrayLike, "Value", Sequence[Union[ArrayLike, "Value"]]]:
@@ -521,15 +519,15 @@ class _DenseArrayValue(ArrayValue):
 
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
-def _(*args: ArrayLike | ArrayValue, jaxpr, inline, **kwargs):
+def _(*args: ArrayLike | ArrayValue, jaxpr: Any, inline: bool, **kwargs: Any) -> Any:
     del kwargs
-    fun = quaxify(jex.core.jaxpr_as_fun(jaxpr))
+    fun = quaxify(jexc.jaxpr_as_fun(jaxpr))
     if inline:
         return fun(*args)
-    else:
-        leaves, treedef = jtu.tree_flatten(args)  # remove all Values
-        flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
-        return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
+
+    leaves, treedef = jtu.tree_flatten(args)  # remove all Values
+    flat_fun = lambda x: fun(*jtu.tree_unflatten(treedef, x))
+    return jax.jit(flat_fun)(leaves)  # now we can call without Quax.
 
 
 @register(jax.lax.while_p)
@@ -545,9 +543,9 @@ def _(
     init_vals = args[cond_nconsts + body_nconsts :]
 
     # compute jaxpr of quaxified body and condition function
-    quax_cond_fn = quaxify(jex.core.jaxpr_as_fun(cond_jaxpr))
+    quax_cond_fn = quaxify(jexc.jaxpr_as_fun(cond_jaxpr))
     quax_cond_jaxpr = jax.make_jaxpr(quax_cond_fn)(*cond_consts, *init_vals)
-    quax_body_fn = quaxify(jex.core.jaxpr_as_fun(body_jaxpr))
+    quax_body_fn = quaxify(jexc.jaxpr_as_fun(body_jaxpr))
     quax_body_jaxpr = jax.make_jaxpr(quax_body_fn)(*body_consts, *init_vals)
 
     cond_leaves, _ = jtu.tree_flatten(cond_consts)
@@ -585,7 +583,7 @@ def _(
 
         def flat_quax_call(flat_args):
             args = jtu.tree_unflatten(in_tree, flat_args)
-            out = quaxify(jex.core.jaxpr_as_fun(jaxpr))(*args)
+            out = quaxify(jexc.jaxpr_as_fun(jaxpr))(*args)
             flat_out, out_tree = jtu.tree_flatten(out)
             out_trees.append(out_tree)
             return flat_out
