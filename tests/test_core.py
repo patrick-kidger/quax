@@ -105,3 +105,14 @@ def test_double_override():
 
     with pytest.raises(TypeError):
         f(x, y)
+
+
+# See https://github.com/patrick-kidger/quax/issues/57
+def test_default_path():
+    x = jnp.array([[1.0, 2], [3, 4]]) / 10
+    y = jnp.array([[5.0, 6], [7, 8]]) / 10
+
+    exp = lax.betainc(1.0, x, y)
+    got = quax.quaxify(lax.betainc)(jnp.array(1.0), x, y)
+
+    assert jnp.array_equal(got, exp)
