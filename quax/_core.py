@@ -127,10 +127,7 @@ def _default_process(
             f"Multiple array-ish types {types} are specifying default process rules."
         )
 
-    # Avoid an infinite loop, by pushing a new interpreter to the dynamic interpreter
-    # stack.
-    with jax.ensure_compile_time_eval():
-        return default(primitive, values, params)  # pyright: ignore
+    return default(primitive, values, params)  # pyright: ignore
 
 
 def _wrap_if_array(x: Union[ArrayLike, "Value"]) -> "Value":

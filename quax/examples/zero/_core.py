@@ -46,15 +46,12 @@ class Zero(quax.ArrayValue):
 def _(
     value: ArrayLike, *, broadcast_dimensions, shape, sharding=None
 ) -> ArrayLike | quax.ArrayValue:
-    # Avoid an infinite loop using ensure_compile_time_eval.
-    with jax.ensure_compile_time_eval():
-        out = lax.broadcast_in_dim_p.bind(
-            value,
-            broadcast_dimensions=broadcast_dimensions,
-            shape=shape,
-            sharding=sharding,
-        )
-    return out  # pyright: ignore
+    return lax.broadcast_in_dim_p.bind(
+        value,
+        broadcast_dimensions=broadcast_dimensions,
+        shape=shape,
+        sharding=sharding,
+    )
 
 
 @quax.register(lax.broadcast_in_dim_p)
