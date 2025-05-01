@@ -181,9 +181,8 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
 
         # Call the dispatch rule for this primitive
         with core.set_current_trace(self.parent_trace):
-            try:
-                rule = _rules[primitive]
-            except KeyError:
+            rule = _rules.get(primitive)
+            if rule is None:
                 out = _default_process(primitive, values, params)
             else:
                 try:
