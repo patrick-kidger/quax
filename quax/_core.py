@@ -180,13 +180,12 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
         )
 
         # Call the dispatch rule for this primitive
-        try:
-            rule = _rules[primitive]
-        except KeyError:
-            with core.set_current_trace(self.parent_trace):
+        with core.set_current_trace(self.parent_trace):
+            try:
+                rule = _rules[primitive]
+            except KeyError:
                 out = _default_process(primitive, values, params)
-        else:
-            with core.set_current_trace(self.parent_trace):
+            else:
                 try:
                     method, _ = rule.resolve_method(values)
                 except plum.NotFoundLookupError:
