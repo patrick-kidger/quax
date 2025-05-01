@@ -150,12 +150,36 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
             return val.value
         return _DenseArrayValue(val)
 
+    # ===========================================
+    # Override methods from jax.core.Trace
+
     def process_primitive(self, primitive, tracers, params):
-        # params = dict(params); params.pop('sharding', None)
-        values = [self.to_value(t) for t in tracers]
+        """Processes a primitive with the given tracers and parameters.
+
+        This is the main entry point for processing primitives in JAX. It is
+        called when a primitive is encountered during the evaluation of a JAX
+        expression.
+
+        **Arguments:**
+        - `primitive`: The primitive to be processed.
+        - `tracers`: A sequence of tracers that represent the inputs to the
+          primitive.
+        - `params`: A dictionary of parameters for the primitive.
+
+        **Returns:**
+        A ``_QuaxTracer`` (or list thereof) representing the result of
+        processing the primitive.
+
+        """
+        # Parse the tracers into values, unpacking any _DenseArrayValues.
         values = tuple(
-            x.array if isinstance(x, _DenseArrayValue) else x for x in values
+            [
+                (x.array if isinstance(x := self.to_value(t), _DenseArrayValue) else x)
+                for t in tracers
+            ]
         )
+
+        # Call the dispatch rule for this primitive
         try:
             rule = _rules[primitive]
         except KeyError:
@@ -169,10 +193,11 @@ class _QuaxTrace(core.Trace[_QuaxTracer]):
                     out = _default_process(primitive, values, params)
                 else:
                     out = method(*values, **params)
+
+        # Post-process the output
         if primitive.multiple_results:
             return [_QuaxTracer(self, _wrap_if_array(x)) for x in out]  # pyright: ignore
-        else:
-            return _QuaxTracer(self, _wrap_if_array(out))  # pyright: ignore
+        return _QuaxTracer(self, _wrap_if_array(out))  # pyright: ignore
 
     def process_custom_jvp_call(self, primitive, fun, jvp, tracers, *, symbolic_zeros):
         in_values = [self.to_value(t) for t in tracers]
