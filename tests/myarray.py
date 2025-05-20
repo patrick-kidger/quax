@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import replace
-from typing import Any
+from typing import Any, TypeGuard
 from typing_extensions import Self
 
 import equinox as eqx
@@ -81,9 +81,14 @@ class MyArray(ArrayValue):
         return MyArray(self.array.sum(**kw))
 
 
+def is_myarray(x: Any, /) -> TypeGuard[MyArray]:
+    """Check if the object is a MyArray."""
+    return isinstance(x, MyArray)
+
+
 def unwrap(x: MyArray | ArrayLike) -> jax.Array:
     """Unwrap the array."""
-    return x.array if isinstance(x, MyArray) else x
+    return x.array if is_myarray(x) else x
 
 
 # ==============================================================================
