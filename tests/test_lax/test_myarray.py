@@ -7,7 +7,7 @@ from jax import lax
 
 import quax
 
-from .myarray import MyArray
+from ..myarray import is_myarray, MyArray, unwrap
 
 
 mark_todo = pytest.mark.skip(reason="TODO")
@@ -49,7 +49,7 @@ def _unwrap_myarray(
 ) -> tuple[object, ...] | list[object]:
     expect_myarray = _broadcast_check(expect_myarray, got)
 
-    got_flat, tree_def = jtu.flatten(got, is_leaf=lambda x: isinstance(x, MyArray))
+    got_flat, tree_def = jtu.flatten(got, is_leaf=is_myarray)
     expma_flat, _ = jtu.flatten(expect_myarray)
 
     got_flat = [
@@ -57,17 +57,6 @@ def _unwrap_myarray(
     ]
     got = jtu.unflatten(tree_def, got_flat)
     return got
-
-
-def _unwrap_args(
-    args: tuple[object, ...], kw: dict[str, object]
-) -> tuple[tuple[object, ...], dict[str, object]]:
-    """Unwrap the args and kw to JAX arrays."""
-    return jtu.map(
-        lambda x: x.array if isinstance(x, MyArray) else x,
-        (args, kw),
-        is_leaf=lambda x: isinstance(x, MyArray),
-    )
 
 
 @pytest.mark.parametrize(
@@ -295,7 +284,7 @@ def test_lax_functions(func_name, args, kw, expect_myarray):
     """Test lax vs qlax functions."""
     # Jax version
     func = getattr(lax, func_name)
-    jax_args, jax_kw = _unwrap_args(args, kw)
+    jax_args, jax_kw = jtu.map(unwrap, (args, kw), is_leaf=is_myarray)
     exp = func(*jax_args, **jax_kw)
     exp = exp if isinstance(exp, tuple | list) else (exp,)
 
@@ -350,7 +339,7 @@ def test_lax_linalg_functions(func_name, args, kw, expect_myarray):
     """Test lax vs qlax functions."""
     # Jax version
     func = getattr(lax.linalg, func_name)
-    jax_args, jax_kw = _unwrap_args(args, kw)
+    jax_args, jax_kw = jtu.map(unwrap, (args, kw), is_leaf=is_myarray)
     exp = func(*jax_args, **jax_kw)
     exp = exp if isinstance(exp, tuple | list) else (exp,)
 
