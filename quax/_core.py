@@ -539,7 +539,9 @@ class _DenseArrayValue(ArrayValue):
 
 
 @register(jax._src.pjit.pjit_p)  # pyright: ignore
-def _(*args: ArrayLike | ArrayValue, jaxpr: Any, inline: bool, **kwargs: Any) -> Any:
+def pjit_quax(
+    *args: ArrayLike | ArrayValue, jaxpr: Any, inline: bool, **kwargs: Any
+) -> Any:
     del kwargs
     fun = quaxify(jexc.jaxpr_as_fun(jaxpr))
     if inline:
@@ -551,7 +553,7 @@ def _(*args: ArrayLike | ArrayValue, jaxpr: Any, inline: bool, **kwargs: Any) ->
 
 
 @register(jax.lax.while_p)
-def _(
+def while_quax(
     *args: ArrayValue | ArrayLike,
     cond_nconsts: int,
     cond_jaxpr,
@@ -589,11 +591,12 @@ _sentinel = object()
 
 
 @register(jax.lax.cond_p)
-def _(
+def cond_quax(
     index: ArrayLike,
     *args: ArrayValue | ArrayLike,
     branches: tuple,
     linear=_sentinel,
+    branches_platforms=_sentinel,
 ):
     flat_args, in_tree = jtu.tree_flatten(args)
 
@@ -614,12 +617,14 @@ def _(
     if any(tree_outs_i != out_trees[0] for tree_outs_i in out_trees[1:]):
         raise TypeError("all branches output must have the same pytree.")
 
-    if linear is _sentinel:
-        maybe_linear = {}
-    else:
-        maybe_linear = dict(linear=linear)
+    kwargs = {}
+    if linear is not _sentinel:
+        kwargs["linear"] = linear
+    if branches_platforms is not _sentinel:
+        kwargs["branches_platforms"] = branches_platforms
+
     out_val = jax.lax.cond_p.bind(
-        index, *flat_args, branches=tuple(quax_branches), **maybe_linear
+        index, *flat_args, branches=tuple(quax_branches), **kwargs
     )
     result = jtu.tree_unflatten(out_trees[0], out_val)
     return result
